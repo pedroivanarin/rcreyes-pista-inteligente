@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -26,19 +26,45 @@ const signupSchema = loginSchema.extend({
 export default function Auth() {
   const { user, loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
+  const [hasUsers, setHasUsers] = useState<boolean | null>(null);
+  const [checkingUsers, setCheckingUsers] = useState(true);
+  const [isFirstUser, setIsFirstUser] = useState(false);
   
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
-  // Signup state
+  // Signup state (only for first user)
   const [signupNombre, setSignupNombre] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   
   const { signIn, signUp } = useAuth();
+
+  // Check if any users exist
+  useEffect(() => {
+    const checkUsers = async () => {
+      try {
+        const { count, error } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true });
+        
+        if (error) throw error;
+        
+        const usersExist = (count ?? 0) > 0;
+        setHasUsers(usersExist);
+        setIsFirstUser(!usersExist);
+      } catch (error) {
+        console.error('Error checking users:', error);
+        setHasUsers(true); // Default to login-only on error
+      } finally {
+        setCheckingUsers(false);
+      }
+    };
+    
+    checkUsers();
+  }, []);
 
   // Redirect if already logged in
   if (user && !authLoading) {
@@ -99,7 +125,7 @@ export default function Auth() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || checkingUsers) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -107,6 +133,90 @@ export default function Auth() {
     );
   }
 
+  // Show first user registration form
+  if (isFirstUser) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <span className="text-2xl font-bold">RC</span>
+            </div>
+            <CardTitle className="text-2xl">Configuración Inicial</CardTitle>
+            <CardDescription>Crea tu cuenta de administrador para comenzar</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSignup} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-nombre">Nombre completo</Label>
+                <Input
+                  id="signup-nombre"
+                  type="text"
+                  placeholder="Tu nombre"
+                  value={signupNombre}
+                  onChange={(e) => setSignupNombre(e.target.value)}
+                  className="touch-target"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-email">Correo electrónico</Label>
+                <Input
+                  id="signup-email"
+                  type="email"
+                  placeholder="correo@ejemplo.com"
+                  value={signupEmail}
+                  onChange={(e) => setSignupEmail(e.target.value)}
+                  className="touch-target"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-password">Contraseña</Label>
+                <Input
+                  id="signup-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={signupPassword}
+                  onChange={(e) => setSignupPassword(e.target.value)}
+                  className="touch-target"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-confirm">Confirmar contraseña</Label>
+                <Input
+                  id="signup-confirm"
+                  type="password"
+                  placeholder="••••••••"
+                  value={signupConfirmPassword}
+                  onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                  className="touch-target"
+                  required
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full touch-button"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Creando cuenta...
+                  </>
+                ) : (
+                  'Crear Cuenta de Administrador'
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show login only (no signup tab)
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -118,122 +228,46 @@ export default function Auth() {
           <CardDescription>Control de Pistas de Radio Control</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login" className="touch-target">Iniciar Sesión</TabsTrigger>
-              <TabsTrigger value="signup" className="touch-target">Registrarse</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login" className="mt-6">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Correo electrónico</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="correo@ejemplo.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    className="touch-target"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Contraseña</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="touch-target"
-                    required
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full touch-button"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Ingresando...
-                    </>
-                  ) : (
-                    'Iniciar Sesión'
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="signup" className="mt-6">
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-nombre">Nombre completo</Label>
-                  <Input
-                    id="signup-nombre"
-                    type="text"
-                    placeholder="Tu nombre"
-                    value={signupNombre}
-                    onChange={(e) => setSignupNombre(e.target.value)}
-                    className="touch-target"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Correo electrónico</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="correo@ejemplo.com"
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    className="touch-target"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Contraseña</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    className="touch-target"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-confirm">Confirmar contraseña</Label>
-                  <Input
-                    id="signup-confirm"
-                    type="password"
-                    placeholder="••••••••"
-                    value={signupConfirmPassword}
-                    onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                    className="touch-target"
-                    required
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full touch-button"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Creando cuenta...
-                    </>
-                  ) : (
-                    'Crear Cuenta'
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="login-email">Correo electrónico</Label>
+              <Input
+                id="login-email"
+                type="email"
+                placeholder="correo@ejemplo.com"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="touch-target"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="login-password">Contraseña</Label>
+              <Input
+                id="login-password"
+                type="password"
+                placeholder="••••••••"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="touch-target"
+                required
+              />
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full touch-button"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Ingresando...
+                </>
+              ) : (
+                'Iniciar Sesión'
+              )}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

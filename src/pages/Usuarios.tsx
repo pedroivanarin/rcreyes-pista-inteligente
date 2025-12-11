@@ -3,15 +3,24 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Pencil, User, Shield } from 'lucide-react';
+import { Pencil, User, Shield, Plus, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import type { AppRole } from '@/types/database';
+import { z } from 'zod';
+
+const newUserSchema = z.object({
+  nombre: z.string().trim().min(2, { message: 'El nombre debe tener al menos 2 caracteres' }).max(100),
+  email: z.string().trim().email({ message: 'Correo electrónico inválido' }),
+  password: z.string().min(6, { message: 'La contraseña debe tener al menos 6 caracteres' }),
+});
 
 interface UserWithRole {
   id: string;
@@ -26,9 +35,17 @@ export default function Usuarios() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [selectedRole, setSelectedRole] = useState<AppRole>('operador');
   const [isActive, setIsActive] = useState(true);
+  
+  // New user form state
+  const [newNombre, setNewNombre] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState<AppRole>('operador');
+  const [isCreating, setIsCreating] = useState(false);
 
   const { data: usuarios, isLoading } = useQuery({
     queryKey: ['usuarios'],
@@ -115,6 +132,63 @@ export default function Usuarios() {
     setIsDialogOpen(true);
   };
 
+  const openCreateDialog = () => {
+    setNewNombre('');
+    setNewEmail('');
+    setNewPassword('');
+    setNewRole('operador');
+    setIsCreateDialogOpen(true);
+  };
+
+  const handleCreateUser = async () => {
+    const validation = newUserSchema.safeParse({
+      nombre: newNombre,
+      email: newEmail,
+      password: newPassword,
+    });
+
+    if (!validation.success) {
+      toast({
+        title: 'Error de validación',
+        description: validation.error.errors[0].message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: newEmail,
+          password: newPassword,
+          nombre: newNombre,
+          role: newRole,
+        },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
+      queryClient.invalidateQueries({ queryKey: ['usuarios'] });
+      setIsCreateDialogOpen(false);
+      
+      toast({
+        title: 'Usuario creado',
+        description: `Se ha creado el usuario ${newNombre} exitosamente.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'No se pudo crear el usuario.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const getRoleBadgeVariant = (role: AppRole) => {
     switch (role) {
       case 'root': return 'destructive';
@@ -136,9 +210,15 @@ export default function Usuarios() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Usuarios</h1>
-          <p className="text-muted-foreground">Administra los usuarios y sus permisos</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Usuarios</h1>
+            <p className="text-muted-foreground">Administra los usuarios y sus permisos</p>
+          </div>
+          <Button onClick={openCreateDialog} className="touch-button">
+            <Plus className="h-5 w-5 mr-2" />
+            Nuevo Usuario
+          </Button>
         </div>
 
         {isLoading ? (
@@ -222,6 +302,91 @@ export default function Usuarios() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Create User Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Nuevo Usuario</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-nombre">Nombre completo</Label>
+                <Input
+                  id="new-nombre"
+                  type="text"
+                  placeholder="Nombre del usuario"
+                  value={newNombre}
+                  onChange={(e) => setNewNombre(e.target.value)}
+                  className="touch-target"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="new-email">Correo electrónico</Label>
+                <Input
+                  id="new-email"
+                  type="email"
+                  placeholder="correo@ejemplo.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="touch-target"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Contraseña</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="touch-target"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Rol</Label>
+                <Select value={newRole} onValueChange={(v) => setNewRole(v as AppRole)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="operador">Operador</SelectItem>
+                    <SelectItem value="supervisor">Supervisor</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsCreateDialogOpen(false)} 
+                  className="flex-1"
+                  disabled={isCreating}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleCreateUser} 
+                  disabled={isCreating}
+                  className="flex-1"
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creando...
+                    </>
+                  ) : (
+                    'Crear Usuario'
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
