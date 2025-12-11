@@ -13,6 +13,10 @@ import Dashboard from "./pages/Dashboard";
 import NuevoTicket from "./pages/NuevoTicket";
 import TicketDetail from "./pages/TicketDetail";
 import Cobro from "./pages/Cobro";
+import Servicios from "./pages/Servicios";
+import Tarifas from "./pages/Tarifas";
+import Usuarios from "./pages/Usuarios";
+import Reportes from "./pages/Reportes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +51,26 @@ const App = () => (
             <Route path="/cobro/:id" element={
               <ProtectedRoute>
                 <Cobro />
+              </ProtectedRoute>
+            } />
+            <Route path="/servicios" element={
+              <ProtectedRoute requireAdmin>
+                <Servicios />
+              </ProtectedRoute>
+            } />
+            <Route path="/tarifas" element={
+              <ProtectedRoute requireAdmin>
+                <Tarifas />
+              </ProtectedRoute>
+            } />
+            <Route path="/usuarios" element={
+              <ProtectedRoute requireAdmin>
+                <Usuarios />
+              </ProtectedRoute>
+            } />
+            <Route path="/reportes" element={
+              <ProtectedRoute requireAdmin>
+                <Reportes />
               </ProtectedRoute>
             } />
             

@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, RefreshCw, AlertCircle } from 'lucide-react';
+import { Plus, RefreshCw, AlertCircle, QrCode } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { TicketCard } from '@/components/tickets/TicketCard';
+import { QRScanner } from '@/components/qr/QRScanner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Ticket, EstadoTicket } from '@/types/database';
 import { Loader2 } from 'lucide-react';
@@ -17,6 +19,7 @@ export default function Dashboard() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   const fetchTickets = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -122,6 +125,29 @@ export default function Dashboard() {
     }
   };
 
+  const handleQRScan = async (code: string) => {
+    setShowScanner(false);
+    
+    // Try to find ticket by code
+    const { data: ticket, error } = await supabase
+      .from('tickets')
+      .select('id, estado')
+      .eq('codigo', code)
+      .maybeSingle();
+
+    if (error || !ticket) {
+      toast.error('Ticket no encontrado');
+      return;
+    }
+
+    if (ticket.estado === 'cerrado' || ticket.estado === 'cancelado') {
+      toast.error('Este ticket ya está cerrado');
+      return;
+    }
+
+    navigate(`/cobro/${ticket.id}`);
+  };
+
   const activeTickets = tickets.filter(t => t.estado === 'activo');
   const pausedTickets = tickets.filter(t => t.estado === 'pausado');
 
@@ -137,6 +163,14 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowScanner(true)}
+              className="touch-target gap-2"
+            >
+              <QrCode className="h-5 w-5" />
+              <span className="hidden sm:inline">Escanear</span>
+            </Button>
             <Button
               variant="outline"
               size="icon"
@@ -155,6 +189,13 @@ export default function Dashboard() {
             </Button>
           </div>
         </div>
+
+        {/* QR Scanner Dialog */}
+        <Dialog open={showScanner} onOpenChange={setShowScanner}>
+          <DialogContent className="sm:max-w-md p-0 border-0 bg-transparent shadow-none">
+            <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
+          </DialogContent>
+        </Dialog>
 
         {loading ? (
           <div className="flex h-64 items-center justify-center">
