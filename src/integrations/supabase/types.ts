@@ -138,6 +138,7 @@ export type Database = {
           activo: boolean
           created_at: string
           descripcion: string | null
+          icono: string | null
           id: string
           maximo_por_ticket: number | null
           nombre: string
@@ -151,6 +152,7 @@ export type Database = {
           activo?: boolean
           created_at?: string
           descripcion?: string | null
+          icono?: string | null
           id?: string
           maximo_por_ticket?: number | null
           nombre: string
@@ -164,6 +166,7 @@ export type Database = {
           activo?: boolean
           created_at?: string
           descripcion?: string | null
+          icono?: string | null
           id?: string
           maximo_por_ticket?: number | null
           nombre?: string
