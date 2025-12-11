@@ -11,9 +11,54 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Pencil, Package } from 'lucide-react';
+import { 
+  Plus, Pencil, Package, BatteryCharging, Car, CupSoda, Cookie, 
+  Cpu, Wrench, ShoppingCart, Gamepad2, Timer, Zap
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { Servicio, TipoCosto } from '@/types/database';
+import type { TipoCosto } from '@/types/database';
+
+// Mapa de íconos disponibles
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  'package': Package,
+  'battery-charging': BatteryCharging,
+  'car': Car,
+  'cup-soda': CupSoda,
+  'cookie': Cookie,
+  'cpu': Cpu,
+  'wrench': Wrench,
+  'shopping-cart': ShoppingCart,
+  'gamepad-2': Gamepad2,
+  'timer': Timer,
+  'zap': Zap,
+};
+
+const iconOptions = [
+  { value: 'package', label: 'Paquete' },
+  { value: 'battery-charging', label: 'Batería' },
+  { value: 'car', label: 'Auto' },
+  { value: 'cup-soda', label: 'Bebida' },
+  { value: 'cookie', label: 'Snack' },
+  { value: 'cpu', label: 'Máquina' },
+  { value: 'wrench', label: 'Herramienta' },
+  { value: 'shopping-cart', label: 'Carrito' },
+  { value: 'gamepad-2', label: 'Control' },
+  { value: 'timer', label: 'Tiempo' },
+  { value: 'zap', label: 'Energía' },
+];
+
+interface Servicio {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  precio: number;
+  tipo_costo: TipoCosto;
+  requiere_inventario: boolean;
+  stock_actual: number | null;
+  maximo_por_ticket: number | null;
+  activo: boolean;
+  icono: string | null;
+}
 
 export default function Servicios() {
   const { toast } = useToast();
@@ -76,6 +121,7 @@ export default function Servicios() {
       descripcion: formData.get('descripcion') as string || null,
       precio: parseFloat(formData.get('precio') as string),
       tipo_costo: formData.get('tipo_costo') as TipoCosto,
+      icono: formData.get('icono') as string || 'package',
       requiere_inventario: formData.get('requiere_inventario') === 'on',
       stock_actual: parseInt(formData.get('stock_actual') as string) || null,
       maximo_por_ticket: parseInt(formData.get('maximo_por_ticket') as string) || null,
@@ -161,6 +207,28 @@ export default function Servicios() {
                     </Select>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="icono">Ícono</Label>
+                  <Select name="icono" defaultValue={editingService?.icono || 'package'}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {iconOptions.map((opt) => {
+                        const IconComponent = iconMap[opt.value];
+                        return (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            <div className="flex items-center gap-2">
+                              <IconComponent className="h-4 w-4" />
+                              <span>{opt.label}</span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
                 
                 <div className="flex items-center justify-between">
                   <Label htmlFor="requiere_inventario">Requiere Inventario</Label>
@@ -219,19 +287,23 @@ export default function Servicios() {
           <div className="text-center py-8 text-muted-foreground">Cargando...</div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {servicios?.map((servicio) => (
-              <Card key={servicio.id} className={!servicio.activo ? 'opacity-60' : ''}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-5 w-5 text-muted-foreground" />
-                      <CardTitle className="text-lg">{servicio.nombre}</CardTitle>
+            {servicios?.map((servicio) => {
+              const IconComponent = iconMap[servicio.icono || 'package'] || Package;
+              return (
+                <Card key={servicio.id} className={!servicio.activo ? 'opacity-60' : ''}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-primary/10">
+                          <IconComponent className="h-5 w-5 text-primary" />
+                        </div>
+                        <CardTitle className="text-lg">{servicio.nombre}</CardTitle>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(servicio)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(servicio)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
+                  </CardHeader>
                 <CardContent className="space-y-2">
                   {servicio.descripcion && (
                     <p className="text-sm text-muted-foreground">{servicio.descripcion}</p>
@@ -252,7 +324,8 @@ export default function Servicios() {
                   )}
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
