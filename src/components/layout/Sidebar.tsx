@@ -5,6 +5,7 @@ import {
   Package, 
   DollarSign, 
   Users, 
+  UserCheck,
   BarChart3,
   Settings,
   X
@@ -28,6 +29,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Tablero' },
   { to: '/nuevo-ticket', icon: Plus, label: 'Nuevo Ticket' },
+  { to: '/clientes', icon: UserCheck, label: 'Clientes', requiresAdmin: true },
   { to: '/servicios', icon: Package, label: 'Servicios', requiresAdmin: true },
   { to: '/tarifas', icon: DollarSign, label: 'Tarifas', requiresAdmin: true },
   { to: '/usuarios', icon: Users, label: 'Usuarios', requiresAdmin: true },

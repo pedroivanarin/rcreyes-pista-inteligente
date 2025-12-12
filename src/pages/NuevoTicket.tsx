@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { ArrowLeft, Plus, Minus, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Loader2, Search, UserCheck, Crown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -10,21 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { TipoCliente, Servicio, TarifaHora } from '@/types/database';
+import { Servicio, TarifaHora, Cliente, TipoMembresia } from '@/types/database';
 
 const ticketSchema = z.object({
-  nombre: z.string().trim().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   personas: z.number().min(1, 'Debe haber al menos 1 persona'),
-  tipo_cliente: z.enum(['regular', 'miembro', 'invitado']),
   notas: z.string().max(500).optional(),
 });
 
@@ -33,13 +25,27 @@ interface SelectedService {
   cantidad: number;
 }
 
+const MEMBRESIA_LABELS: Record<TipoMembresia, string> = {
+  ninguna: 'Sin membresía',
+  basica: 'Básica (5%)',
+  premium: 'Premium (10%)',
+  vip: 'VIP (15%)',
+};
+
 export default function NuevoTicket() {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const [nombre, setNombre] = useState('');
+  // Client search
+  const [codigoCliente, setCodigoCliente] = useState('');
+  const [searchingCliente, setSearchingCliente] = useState(false);
+  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  
+  // New client mode
+  const [isNewClient, setIsNewClient] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState('');
+  
   const [personas, setPersonas] = useState(1);
-  const [tipoCliente, setTipoCliente] = useState<TipoCliente>('regular');
   const [notas, setNotas] = useState('');
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
@@ -51,7 +57,6 @@ export default function NuevoTicket() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch active services
         const { data: serviciosData } = await supabase
           .from('servicios')
           .select('*')
@@ -60,7 +65,6 @@ export default function NuevoTicket() {
         
         setServicios((serviciosData || []) as Servicio[]);
 
-        // Fetch active tarifa
         const { data: tarifaData } = await supabase
           .from('tarifas_hora')
           .select('*')
@@ -80,6 +84,39 @@ export default function NuevoTicket() {
 
     fetchData();
   }, []);
+
+  const searchCliente = async () => {
+    if (!codigoCliente.trim()) {
+      toast.error('Ingresa un código de cliente');
+      return;
+    }
+
+    setSearchingCliente(true);
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .or(`codigo_cliente.ilike.%${codigoCliente.trim()}%,nombre.ilike.%${codigoCliente.trim()}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setSelectedCliente(data as Cliente);
+        setIsNewClient(false);
+        toast.success(`Cliente encontrado: ${data.nombre}`);
+      } else {
+        toast.error('Cliente no encontrado. Puedes registrar uno nuevo.');
+        setSelectedCliente(null);
+      }
+    } catch (error) {
+      console.error('Error searching cliente:', error);
+      toast.error('Error al buscar el cliente');
+    } finally {
+      setSearchingCliente(false);
+    }
+  };
 
   const toggleService = (servicioId: string, checked: boolean) => {
     if (checked) {
@@ -105,14 +142,22 @@ export default function NuevoTicket() {
     e.preventDefault();
     
     const validation = ticketSchema.safeParse({
-      nombre,
       personas,
-      tipo_cliente: tipoCliente,
       notas,
     });
 
     if (!validation.success) {
       toast.error(validation.error.errors[0].message);
+      return;
+    }
+
+    if (!selectedCliente && !isNewClient) {
+      toast.error('Busca un cliente existente o registra uno nuevo');
+      return;
+    }
+
+    if (isNewClient && !nuevoNombre.trim()) {
+      toast.error('Ingresa el nombre del nuevo cliente');
       return;
     }
 
@@ -129,32 +174,29 @@ export default function NuevoTicket() {
     setSubmitting(true);
 
     try {
-      // 1. Create or find cliente
       let clienteId: string;
       
-      const { data: existingCliente } = await supabase
-        .from('clientes')
-        .select('id')
-        .eq('nombre', nombre.trim())
-        .maybeSingle();
-      
-      if (existingCliente) {
-        clienteId = existingCliente.id;
+      if (selectedCliente) {
+        clienteId = selectedCliente.id;
       } else {
+        // Create new client
         const { data: newCliente, error: clienteError } = await supabase
           .from('clientes')
           .insert({
-            nombre: nombre.trim(),
-            tipo_cliente: tipoCliente,
+            nombre: nuevoNombre.trim(),
+            tipo_cliente: 'regular',
+            membresia: 'ninguna',
+            descuento_porcentaje: 0,
           })
-          .select('id')
+          .select('id, codigo_cliente')
           .single();
         
         if (clienteError) throw clienteError;
         clienteId = newCliente.id;
+        toast.info(`Nuevo cliente registrado: ${newCliente.codigo_cliente}`);
       }
 
-      // 2. Create ticket
+      // Create ticket
       const { data: ticketData, error: ticketError } = await supabase
         .from('tickets')
         .insert({
@@ -169,7 +211,7 @@ export default function NuevoTicket() {
 
       if (ticketError) throw ticketError;
 
-      // 3. Add services if any
+      // Add services if any
       if (selectedServices.length > 0) {
         const serviciosToInsert = selectedServices.map(ss => {
           const servicio = servicios.find(s => s.id === ss.servicio_id)!;
@@ -188,7 +230,7 @@ export default function NuevoTicket() {
 
         if (serviciosError) throw serviciosError;
 
-        // Update inventory for services that require it
+        // Update inventory
         for (const ss of selectedServices) {
           const servicio = servicios.find(s => s.id === ss.servicio_id);
           if (servicio?.requiere_inventario && servicio.stock_actual !== null) {
@@ -200,13 +242,18 @@ export default function NuevoTicket() {
         }
       }
 
-      // 4. Create audit record
+      // Create audit record
       await supabase.from('auditorias').insert({
         user_id: user.id,
         accion: 'crear_ticket',
         entidad: 'tickets',
         entidad_id: ticketData.id,
-        detalle: { codigo: ticketData.codigo, cliente: nombre, personas },
+        detalle: { 
+          codigo: ticketData.codigo, 
+          cliente_id: clienteId,
+          personas,
+          descuento: selectedCliente?.descuento_porcentaje || 0,
+        },
       });
 
       toast.success(`Ticket ${ticketData.codigo} creado exitosamente`);
@@ -249,72 +296,138 @@ export default function NuevoTicket() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Client info */}
+          {/* Client Search */}
           <Card>
             <CardHeader>
-              <CardTitle>Información del Cliente</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <UserCheck className="h-5 w-5" />
+                Buscar Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={codigoCliente}
+                  onChange={(e) => setCodigoCliente(e.target.value)}
+                  placeholder="Código o nombre del cliente (ej: RCM-00001)"
+                  className="touch-target flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      searchCliente();
+                    }
+                  }}
+                />
+                <Button 
+                  type="button" 
+                  onClick={searchCliente}
+                  disabled={searchingCliente}
+                  className="touch-button"
+                >
+                  {searchingCliente ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+
+              {/* Selected client display */}
+              {selectedCliente && (
+                <div className="p-4 bg-muted rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-lg">{selectedCliente.nombre}</p>
+                      <p className="text-sm font-mono text-muted-foreground">{selectedCliente.codigo_cliente}</p>
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setSelectedCliente(null);
+                        setCodigoCliente('');
+                      }}
+                    >
+                      Cambiar
+                    </Button>
+                  </div>
+                  {selectedCliente.membresia && selectedCliente.membresia !== 'ninguna' && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="default" className="gap-1">
+                        <Crown className="h-3 w-3" />
+                        {MEMBRESIA_LABELS[selectedCliente.membresia]}
+                      </Badge>
+                      <Badge variant="outline" className="text-green-600 border-green-600">
+                        {selectedCliente.descuento_porcentaje}% descuento
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* New client option */}
+              {!selectedCliente && (
+                <div className="border-t pt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Checkbox 
+                      id="nuevo-cliente" 
+                      checked={isNewClient}
+                      onCheckedChange={(checked) => setIsNewClient(!!checked)}
+                    />
+                    <label htmlFor="nuevo-cliente" className="text-sm font-medium cursor-pointer">
+                      Registrar cliente nuevo (primera visita)
+                    </label>
+                  </div>
+                  
+                  {isNewClient && (
+                    <Input
+                      value={nuevoNombre}
+                      onChange={(e) => setNuevoNombre(e.target.value)}
+                      placeholder="Nombre del nuevo cliente"
+                      className="touch-target"
+                    />
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Entry details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Detalles de Entrada</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="nombre">Nombre del cliente *</Label>
-                <Input
-                  id="nombre"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Nombre del cliente"
-                  className="touch-target"
-                  required
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="personas">Número de personas *</Label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setPersonas(Math.max(1, personas - 1))}
-                      className="touch-target"
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <Input
-                      id="personas"
-                      type="number"
-                      value={personas}
-                      onChange={(e) => setPersonas(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="touch-target text-center"
-                      min={1}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setPersonas(personas + 1)}
-                      className="touch-target"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tipo">Tipo de cliente</Label>
-                  <Select
-                    value={tipoCliente}
-                    onValueChange={(v) => setTipoCliente(v as TipoCliente)}
+                <Label htmlFor="personas">Número de personas *</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setPersonas(Math.max(1, personas - 1))}
+                    className="touch-target"
                   >
-                    <SelectTrigger className="touch-target">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover z-50">
-                      <SelectItem value="regular">Regular</SelectItem>
-                      <SelectItem value="miembro">Miembro</SelectItem>
-                      <SelectItem value="invitado">Invitado</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <Input
+                    id="personas"
+                    type="number"
+                    value={personas}
+                    onChange={(e) => setPersonas(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="touch-target text-center w-20"
+                    min={1}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setPersonas(personas + 1)}
+                    className="touch-target"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
 
@@ -414,9 +527,16 @@ export default function NuevoTicket() {
                   <p className="font-medium">Tarifa aplicada</p>
                   <p className="text-sm text-muted-foreground">{tarifaActiva.nombre}</p>
                 </div>
-                <p className="text-lg font-bold">
-                  ${tarifaActiva.precio_por_hora.toFixed(2)}/hora
-                </p>
+                <div className="text-right">
+                  <p className="text-lg font-bold">
+                    ${tarifaActiva.precio_por_hora.toFixed(2)}/hora
+                  </p>
+                  {selectedCliente?.descuento_porcentaje > 0 && (
+                    <p className="text-sm text-green-600">
+                      -{selectedCliente.descuento_porcentaje}% descuento de membresía
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -425,7 +545,7 @@ export default function NuevoTicket() {
           <Button
             type="submit"
             className="w-full touch-button"
-            disabled={submitting}
+            disabled={submitting || (!selectedCliente && !isNewClient)}
           >
             {submitting ? (
               <>

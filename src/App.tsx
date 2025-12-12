@@ -16,6 +16,7 @@ import Cobro from "./pages/Cobro";
 import Servicios from "./pages/Servicios";
 import Tarifas from "./pages/Tarifas";
 import Usuarios from "./pages/Usuarios";
+import Clientes from "./pages/Clientes";
 import Reportes from "./pages/Reportes";
 import NotFound from "./pages/NotFound";
 
@@ -66,6 +67,11 @@ const App = () => (
             <Route path="/usuarios" element={
               <ProtectedRoute requireAdmin>
                 <Usuarios />
+              </ProtectedRoute>
+            } />
+            <Route path="/clientes" element={
+              <ProtectedRoute requireAdmin>
+                <Clientes />
               </ProtectedRoute>
             } />
             <Route path="/reportes" element={

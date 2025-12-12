@@ -2,6 +2,7 @@
 
 export type AppRole = 'operador' | 'supervisor' | 'admin' | 'root';
 export type TipoCliente = 'regular' | 'miembro' | 'invitado';
+export type TipoMembresia = 'ninguna' | 'basica' | 'premium' | 'vip';
 export type EstadoTicket = 'activo' | 'pausado' | 'cerrado' | 'cancelado';
 export type TipoCosto = 'fijo' | 'por_tiempo' | 'paquete';
 export type TipoRedondeo = 'arriba' | 'abajo' | 'estandar';
@@ -25,8 +26,11 @@ export interface UserRole {
 
 export interface Cliente {
   id: string;
+  codigo_cliente: string;
   nombre: string;
   tipo_cliente: TipoCliente;
+  membresia: TipoMembresia;
+  descuento_porcentaje: number;
   telefono?: string;
   notas?: string;
   created_at: string;

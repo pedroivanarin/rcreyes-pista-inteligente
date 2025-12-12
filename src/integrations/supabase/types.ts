@@ -46,8 +46,11 @@ export type Database = {
       }
       clientes: {
         Row: {
+          codigo_cliente: string | null
           created_at: string
+          descuento_porcentaje: number | null
           id: string
+          membresia: Database["public"]["Enums"]["tipo_membresia"] | null
           nombre: string
           notas: string | null
           telefono: string | null
@@ -55,8 +58,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          codigo_cliente?: string | null
           created_at?: string
+          descuento_porcentaje?: number | null
           id?: string
+          membresia?: Database["public"]["Enums"]["tipo_membresia"] | null
           nombre: string
           notas?: string | null
           telefono?: string | null
@@ -64,8 +70,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          codigo_cliente?: string | null
           created_at?: string
+          descuento_porcentaje?: number | null
           id?: string
+          membresia?: Database["public"]["Enums"]["tipo_membresia"] | null
           nombre?: string
           notas?: string | null
           telefono?: string | null
@@ -381,6 +390,7 @@ export type Database = {
         }[]
       }
       check_users_exist: { Args: never; Returns: boolean }
+      generar_codigo_cliente: { Args: never; Returns: string }
       generar_codigo_ticket: { Args: never; Returns: string }
       get_user_role: {
         Args: { _user_id: string }
@@ -402,6 +412,7 @@ export type Database = {
       metodo_pago: "efectivo" | "tarjeta" | "transferencia" | "otro"
       tipo_cliente: "regular" | "miembro" | "invitado"
       tipo_costo: "fijo" | "por_tiempo" | "paquete"
+      tipo_membresia: "ninguna" | "basica" | "premium" | "vip"
       tipo_redondeo: "arriba" | "abajo" | "estandar"
     }
     CompositeTypes: {
@@ -535,6 +546,7 @@ export const Constants = {
       metodo_pago: ["efectivo", "tarjeta", "transferencia", "otro"],
       tipo_cliente: ["regular", "miembro", "invitado"],
       tipo_costo: ["fijo", "por_tiempo", "paquete"],
+      tipo_membresia: ["ninguna", "basica", "premium", "vip"],
       tipo_redondeo: ["arriba", "abajo", "estandar"],
     },
   },
