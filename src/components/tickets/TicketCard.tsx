@@ -65,44 +65,44 @@ export function TicketCard({ ticket, onPause, onResume }: TicketCardProps) {
       {/* Top accent bar */}
       <div className={cn("h-1", config.bg)} />
       
-      <CardContent className="p-4">
+      <CardContent className="p-3 sm:p-4">
         {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
+        <div className="flex items-start justify-between mb-3 sm:mb-4">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className={cn(
-              "p-2 rounded-lg",
+              "p-1.5 sm:p-2 rounded-lg",
               isActive ? "bg-success/10" : isPaused ? "bg-warning/10" : "bg-muted"
             )}>
               <StatusIcon className={cn(
-                "h-5 w-5",
+                "h-4 w-4 sm:h-5 sm:w-5",
                 isActive ? "text-success" : isPaused ? "text-warning" : "text-muted-foreground"
               )} />
             </div>
             <div>
-              <p className="text-lg font-display font-bold tracking-wide">{ticket.codigo}</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-base sm:text-lg font-display font-bold tracking-wide">{ticket.codigo}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate max-w-[120px] sm:max-w-[150px]">
                 {ticket.cliente?.nombre || 'Cliente'}
               </p>
             </div>
           </div>
-          <Badge className={cn(config.bg, config.text, "font-display text-xs")}>
+          <Badge className={cn(config.bg, config.text, "font-display text-[10px] sm:text-xs px-1.5 sm:px-2")}>
             {config.label}
           </Badge>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{ticket.personas} persona{ticket.personas !== 1 ? 's' : ''}</span>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-3 sm:mb-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg bg-muted/50">
+            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+            <span className="text-xs sm:text-sm font-medium">{ticket.personas} pers.</span>
           </div>
           <div className={cn(
-            "flex items-center gap-2 p-2 rounded-lg",
+            "flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg",
             isActive ? "bg-success/10" : "bg-muted/50"
           )}>
-            <Clock className={cn("h-4 w-4", isActive ? "text-success" : "text-muted-foreground")} />
+            <Clock className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4", isActive ? "text-success" : "text-muted-foreground")} />
             <span className={cn(
-              "text-sm font-display font-bold",
+              "text-xs sm:text-sm font-display font-bold",
               isActive && "text-success"
             )}>
               {formatTime(elapsedMinutes)}
@@ -110,15 +110,15 @@ export function TicketCard({ ticket, onPause, onResume }: TicketCardProps) {
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-2">
+        {/* Actions - Stack on very small screens */}
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 touch-target font-display"
+            className="flex-1 min-w-[60px] touch-target font-display text-xs sm:text-sm h-9 sm:h-10"
             onClick={() => navigate(`/ticket/${ticket.id}`)}
           >
-            <Eye className="mr-1 h-4 w-4" />
+            <Eye className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Ver
           </Button>
           
@@ -126,10 +126,10 @@ export function TicketCard({ ticket, onPause, onResume }: TicketCardProps) {
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 touch-target font-display border-warning text-warning hover:bg-warning hover:text-white"
+              className="flex-1 min-w-[60px] touch-target font-display text-xs sm:text-sm h-9 sm:h-10 border-warning text-warning hover:bg-warning hover:text-white"
               onClick={() => onPause(ticket.id)}
             >
-              <Pause className="mr-1 h-4 w-4" />
+              <Pause className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Pausar
             </Button>
           )}
@@ -138,10 +138,10 @@ export function TicketCard({ ticket, onPause, onResume }: TicketCardProps) {
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 touch-target font-display border-success text-success hover:bg-success hover:text-white"
+              className="flex-1 min-w-[60px] touch-target font-display text-xs sm:text-sm h-9 sm:h-10 border-success text-success hover:bg-success hover:text-white"
               onClick={() => onResume(ticket.id)}
             >
-              <Play className="mr-1 h-4 w-4" />
+              <Play className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Seguir
             </Button>
           )}
@@ -149,10 +149,10 @@ export function TicketCard({ ticket, onPause, onResume }: TicketCardProps) {
           {(isActive || isPaused) && (
             <Button
               size="sm"
-              className="flex-1 touch-target font-display bg-primary hover:bg-primary/90"
+              className="flex-1 min-w-[60px] touch-target font-display text-xs sm:text-sm h-9 sm:h-10 bg-primary hover:bg-primary/90"
               onClick={() => navigate(`/cobro/${ticket.id}`)}
             >
-              <Flag className="mr-1 h-4 w-4" />
+              <Flag className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Cobrar
             </Button>
           )}
