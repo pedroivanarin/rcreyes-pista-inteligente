@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Pencil, User, Shield, Plus, Loader2 } from 'lucide-react';
+import { Pencil, User, Shield, Plus, Loader2, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import type { AppRole } from '@/types/database';
@@ -46,6 +47,11 @@ export default function Usuarios() {
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<AppRole>('operador');
   const [isCreating, setIsCreating] = useState(false);
+  
+  // Delete user state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<UserWithRole | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: usuarios, isLoading } = useQuery({
     queryKey: ['usuarios'],
@@ -207,6 +213,42 @@ export default function Usuarios() {
     }
   };
 
+  const openDeleteDialog = (usuario: UserWithRole) => {
+    setUserToDelete(usuario);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { userId: userToDelete.id },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
+      queryClient.invalidateQueries({ queryKey: ['usuarios'] });
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      
+      toast({
+        title: 'Usuario eliminado',
+        description: `Se ha eliminado el usuario ${userToDelete.nombre}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'No se pudo eliminar el usuario.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -234,9 +276,19 @@ export default function Usuarios() {
                       <CardTitle className="text-lg">{usuario.nombre}</CardTitle>
                     </div>
                     {usuario.id !== user?.id && (
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(usuario)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(usuario)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => openDeleteDialog(usuario)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardHeader>
@@ -389,6 +441,36 @@ export default function Usuarios() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Delete User Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción eliminará permanentemente al usuario <strong>{userToDelete?.nombre}</strong> ({userToDelete?.email}). 
+                Esta acción no se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDeleteUser}
+                disabled={isDeleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Eliminando...
+                  </>
+                ) : (
+                  'Eliminar'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
