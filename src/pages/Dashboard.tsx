@@ -119,13 +119,19 @@ export default function Dashboard() {
     }
   };
 
-  const handleQRScan = async (code: string) => {
+  const handleQRScan = async (scannedCode: string) => {
     setShowScanner(false);
+    
+    // Parse QR format: RCREYES:{codigo} or just the codigo
+    let ticketCode = scannedCode;
+    if (scannedCode.startsWith('RCREYES:')) {
+      ticketCode = scannedCode.replace('RCREYES:', '');
+    }
     
     const { data: ticket, error } = await supabase
       .from('tickets')
       .select('id, estado')
-      .eq('codigo', code)
+      .eq('codigo', ticketCode)
       .maybeSingle();
 
     if (error || !ticket) {
