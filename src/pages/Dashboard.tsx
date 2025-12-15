@@ -123,10 +123,14 @@ export default function Dashboard() {
     setShowScanner(false);
     
     // Parse QR format: RCREYES:{codigo} or just the codigo
-    let ticketCode = scannedCode;
-    if (scannedCode.startsWith('RCREYES:')) {
-      ticketCode = scannedCode.replace('RCREYES:', '');
+    // Trim whitespace and normalize
+    let ticketCode = scannedCode.trim();
+    if (ticketCode.startsWith('RCREYES:')) {
+      ticketCode = ticketCode.replace('RCREYES:', '').trim();
     }
+    
+    console.log('QR Scanned raw:', scannedCode);
+    console.log('QR Parsed code:', ticketCode);
     
     const { data: ticket, error } = await supabase
       .from('tickets')
@@ -134,8 +138,10 @@ export default function Dashboard() {
       .eq('codigo', ticketCode)
       .maybeSingle();
 
+    console.log('Query result:', { ticket, error });
+
     if (error || !ticket) {
-      toast.error('Ticket no encontrado');
+      toast.error(`Ticket no encontrado: ${ticketCode}`);
       return;
     }
 
