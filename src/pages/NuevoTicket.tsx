@@ -36,14 +36,12 @@ export default function NuevoTicket() {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  // Client search
+  // Client - name is primary, search is optional
+  const [nombreCliente, setNombreCliente] = useState('');
+  const [buscarExistente, setBuscarExistente] = useState(false);
   const [codigoCliente, setCodigoCliente] = useState('');
   const [searchingCliente, setSearchingCliente] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
-  
-  // New client mode
-  const [isNewClient, setIsNewClient] = useState(false);
-  const [nuevoNombre, setNuevoNombre] = useState('');
   
   const [personas, setPersonas] = useState(1);
   const [notas, setNotas] = useState('');
@@ -104,10 +102,10 @@ export default function NuevoTicket() {
 
       if (data) {
         setSelectedCliente(data as Cliente);
-        setIsNewClient(false);
+        setBuscarExistente(false);
         toast.success(`Cliente encontrado: ${data.nombre}`);
       } else {
-        toast.error('Cliente no encontrado. Puedes registrar uno nuevo.');
+        toast.error('Cliente no encontrado');
         setSelectedCliente(null);
       }
     } catch (error) {
@@ -151,13 +149,9 @@ export default function NuevoTicket() {
       return;
     }
 
-    if (!selectedCliente && !isNewClient) {
-      toast.error('Busca un cliente existente o registra uno nuevo');
-      return;
-    }
-
-    if (isNewClient && !nuevoNombre.trim()) {
-      toast.error('Ingresa el nombre del nuevo cliente');
+    // Validate client - either selected existing or has name
+    if (!selectedCliente && !nombreCliente.trim()) {
+      toast.error('Ingresa el nombre del cliente');
       return;
     }
 
@@ -177,13 +171,14 @@ export default function NuevoTicket() {
       let clienteId: string;
       
       if (selectedCliente) {
+        // Use selected existing client
         clienteId = selectedCliente.id;
       } else {
-        // Create new client
+        // Create new client with the name provided
         const { data: newCliente, error: clienteError } = await supabase
           .from('clientes')
           .insert({
-            nombre: nuevoNombre.trim(),
+            nombre: nombreCliente.trim(),
             tipo_cliente: 'regular',
             membresia: 'ninguna',
             descuento_porcentaje: 0,
@@ -296,44 +291,17 @@ export default function NuevoTicket() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Client Search */}
+          {/* Client Info */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <UserCheck className="h-5 w-5" />
-                Buscar Cliente
+                Información del Cliente
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  value={codigoCliente}
-                  onChange={(e) => setCodigoCliente(e.target.value)}
-                  placeholder="Código o nombre del cliente (ej: RCM-00001)"
-                  className="touch-target flex-1"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      searchCliente();
-                    }
-                  }}
-                />
-                <Button 
-                  type="button" 
-                  onClick={searchCliente}
-                  disabled={searchingCliente}
-                  className="touch-button"
-                >
-                  {searchingCliente ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-
-              {/* Selected client display */}
-              {selectedCliente && (
+              {/* If a client is selected, show their info */}
+              {selectedCliente ? (
                 <div className="p-4 bg-muted rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
@@ -347,6 +315,7 @@ export default function NuevoTicket() {
                       onClick={() => {
                         setSelectedCliente(null);
                         setCodigoCliente('');
+                        setBuscarExistente(false);
                       }}
                     >
                       Cambiar
@@ -364,31 +333,71 @@ export default function NuevoTicket() {
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* New client option */}
-              {!selectedCliente && (
-                <div className="border-t pt-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Checkbox 
-                      id="nuevo-cliente" 
-                      checked={isNewClient}
-                      onCheckedChange={(checked) => setIsNewClient(!!checked)}
-                    />
-                    <label htmlFor="nuevo-cliente" className="text-sm font-medium cursor-pointer">
-                      Registrar cliente nuevo (primera visita)
-                    </label>
-                  </div>
-                  
-                  {isNewClient && (
+              ) : (
+                <>
+                  {/* Primary: Name input */}
+                  <div className="space-y-2">
+                    <Label htmlFor="nombre-cliente">Nombre del cliente *</Label>
                     <Input
-                      value={nuevoNombre}
-                      onChange={(e) => setNuevoNombre(e.target.value)}
-                      placeholder="Nombre del nuevo cliente"
+                      id="nombre-cliente"
+                      value={nombreCliente}
+                      onChange={(e) => setNombreCliente(e.target.value)}
+                      placeholder="Ingresa el nombre del cliente"
                       className="touch-target"
+                      disabled={buscarExistente}
                     />
-                  )}
-                </div>
+                  </div>
+
+                  {/* Optional: Search existing client */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Checkbox 
+                        id="buscar-existente" 
+                        checked={buscarExistente}
+                        onCheckedChange={(checked) => {
+                          setBuscarExistente(!!checked);
+                          if (!checked) {
+                            setCodigoCliente('');
+                          } else {
+                            setNombreCliente('');
+                          }
+                        }}
+                      />
+                      <label htmlFor="buscar-existente" className="text-sm font-medium cursor-pointer">
+                        Buscar cliente existente (tiene membresía)
+                      </label>
+                    </div>
+                    
+                    {buscarExistente && (
+                      <div className="flex gap-2">
+                        <Input
+                          value={codigoCliente}
+                          onChange={(e) => setCodigoCliente(e.target.value)}
+                          placeholder="Código o nombre (ej: RCM-00001)"
+                          className="touch-target flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              searchCliente();
+                            }
+                          }}
+                        />
+                        <Button 
+                          type="button" 
+                          onClick={searchCliente}
+                          disabled={searchingCliente}
+                          className="touch-button"
+                        >
+                          {searchingCliente ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Search className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -545,7 +554,7 @@ export default function NuevoTicket() {
           <Button
             type="submit"
             className="w-full touch-button"
-            disabled={submitting || (!selectedCliente && !isNewClient)}
+            disabled={submitting || (!selectedCliente && !nombreCliente.trim())}
           >
             {submitting ? (
               <>
