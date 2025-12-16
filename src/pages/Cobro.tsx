@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { ArrowLeft, Clock, Printer, CheckCircle, Loader2, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Clock, Printer, CheckCircle, Loader2, RotateCcw, Percent, Crown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -146,7 +146,12 @@ export default function Cobro() {
 
   const subtotalServicios = servicios.reduce((sum, s) => sum + s.monto_total, 0);
   const montoTiempo = calculo?.costo_tiempo || 0;
-  const total = montoTiempo + subtotalServicios;
+  const subtotal = montoTiempo + subtotalServicios;
+  
+  // Aplicar descuento de membresía
+  const descuentoPorcentaje = ticket?.cliente?.descuento_porcentaje || 0;
+  const montoDescuento = subtotal * (descuentoPorcentaje / 100);
+  const total = subtotal - montoDescuento;
 
   const handleCobrar = async () => {
     if (!ticket || !user || !calculo) return;
@@ -200,6 +205,9 @@ export default function Cobro() {
         entidad_id: ticket.id,
         detalle: {
           codigo: ticket.codigo,
+          subtotal: subtotal,
+          descuento_porcentaje: descuentoPorcentaje,
+          descuento_monto: montoDescuento,
           monto_total: total,
           metodo_pago: metodoPago,
           tiempo_cobrado: calculo.tiempo_cobrado_minutos,
@@ -363,9 +371,30 @@ export default function Cobro() {
           </Card>
         )}
 
+        {/* Descuento de membresía */}
+        {descuentoPorcentaje > 0 && (
+          <Card className="border-success/50 bg-success/5 print:border-0 print:shadow-none">
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Crown className="h-5 w-5 text-success" />
+                  <span className="font-medium">Descuento Membresía ({descuentoPorcentaje}%)</span>
+                </div>
+                <span className="text-success font-bold">-${montoDescuento.toFixed(2)}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Total */}
         <Card className="border-primary print:border-0 print:shadow-none">
           <CardContent className="py-6">
+            {descuentoPorcentaje > 0 && (
+              <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                <span>Subtotal</span>
+                <span className="line-through">${subtotal.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-2xl font-bold">
               <span>TOTAL A PAGAR</span>
               <span className="text-primary">${total.toFixed(2)}</span>
