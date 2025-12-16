@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { CalendarIcon, DollarSign, Clock, Users, Ticket, TrendingUp, Package, Download, FileText, FileSpreadsheet, ChevronDown } from 'lucide-react';
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { CalendarIcon, DollarSign, Clock, Users, Ticket, TrendingUp, TrendingDown, Package, Download, FileText, FileSpreadsheet, ChevronDown, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { format, startOfDay, endOfDay, subDays, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -20,147 +22,220 @@ import type { DateRange } from 'react-day-picker';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
+interface PeriodStats {
+  ticketsActivos: number;
+  totalTickets: number;
+  ticketsCerrados: number;
+  ticketsCancelados: number;
+  ventasTotales: number;
+  ingresosTiempo: number;
+  ingresosServicios: number;
+  totalHorasCobradas: number;
+  totalPersonas: number;
+  datosGraficoDiario: { fecha: string; clientes: number; ingresos: number; horas: number }[];
+  topServicios: { nombre: string; cantidad: number; ingresos: number }[];
+}
+
+const fetchPeriodStats = async (from: Date, to: Date): Promise<PeriodStats> => {
+  const fromDate = startOfDay(from).toISOString();
+  const toDate = endOfDay(to).toISOString();
+
+  const { data: tickets, error: ticketsError } = await supabase
+    .from('tickets')
+    .select('id, monto_total, monto_tiempo, monto_servicios, total_tiempo_cobrado_minutos, estado, created_at, personas')
+    .gte('created_at', fromDate)
+    .lte('created_at', toDate);
+  
+  if (ticketsError) throw ticketsError;
+
+  const { data: serviciosVendidos, error: serviciosError } = await supabase
+    .from('ticket_servicios')
+    .select(`
+      cantidad,
+      monto_total,
+      servicio_id,
+      servicios:servicio_id (nombre)
+    `)
+    .gte('created_at', fromDate)
+    .lte('created_at', toDate);
+
+  if (serviciosError) throw serviciosError;
+
+  const { data: ticketsActivos, error: activosError } = await supabase
+    .from('tickets')
+    .select('id')
+    .eq('estado', 'activo');
+  
+  if (activosError) throw activosError;
+
+  const ticketsCerrados = tickets?.filter(t => t.estado === 'cerrado') || [];
+  const ventasTotales = ticketsCerrados.reduce((sum, t) => sum + (t.monto_total || 0), 0);
+  const ingresosTiempo = ticketsCerrados.reduce((sum, t) => sum + (t.monto_tiempo || 0), 0);
+  const ingresosServicios = ticketsCerrados.reduce((sum, t) => sum + (t.monto_servicios || 0), 0);
+  const totalMinutosCobrados = ticketsCerrados.reduce((sum, t) => sum + (t.total_tiempo_cobrado_minutos || 0), 0);
+  const totalHorasCobradas = totalMinutosCobrados / 60;
+  const totalPersonas = tickets?.reduce((sum, t) => sum + (t.personas || 1), 0) || 0;
+
+  const ticketsPorDia: Record<string, { fecha: string; clientes: number; ingresos: number; horas: number }> = {};
+  
+  tickets?.forEach(ticket => {
+    const fecha = format(new Date(ticket.created_at), 'yyyy-MM-dd');
+    const fechaLabel = format(new Date(ticket.created_at), 'dd MMM', { locale: es });
+    
+    if (!ticketsPorDia[fecha]) {
+      ticketsPorDia[fecha] = { fecha: fechaLabel, clientes: 0, ingresos: 0, horas: 0 };
+    }
+    
+    ticketsPorDia[fecha].clientes += ticket.personas || 1;
+    
+    if (ticket.estado === 'cerrado') {
+      ticketsPorDia[fecha].ingresos += ticket.monto_total || 0;
+      ticketsPorDia[fecha].horas += (ticket.total_tiempo_cobrado_minutos || 0) / 60;
+    }
+  });
+
+  const datosGraficoDiario = Object.values(ticketsPorDia).map(d => ({
+    ...d,
+    ingresos: Math.round(d.ingresos * 100) / 100,
+    horas: Math.round(d.horas * 10) / 10,
+  }));
+
+  const serviciosAgrupados: Record<string, { nombre: string; cantidad: number; ingresos: number }> = {};
+  
+  serviciosVendidos?.forEach((sv: any) => {
+    const nombre = sv.servicios?.nombre || 'Servicio desconocido';
+    if (!serviciosAgrupados[sv.servicio_id]) {
+      serviciosAgrupados[sv.servicio_id] = { nombre, cantidad: 0, ingresos: 0 };
+    }
+    serviciosAgrupados[sv.servicio_id].cantidad += sv.cantidad;
+    serviciosAgrupados[sv.servicio_id].ingresos += sv.monto_total || 0;
+  });
+
+  const topServicios = Object.values(serviciosAgrupados)
+    .sort((a, b) => b.cantidad - a.cantidad)
+    .slice(0, 5);
+
+  return {
+    ticketsActivos: ticketsActivos?.length || 0,
+    totalTickets: tickets?.length || 0,
+    ticketsCerrados: ticketsCerrados.length,
+    ticketsCancelados: tickets?.filter(t => t.estado === 'cancelado').length || 0,
+    ventasTotales,
+    ingresosTiempo,
+    ingresosServicios,
+    totalHorasCobradas: Math.round(totalHorasCobradas * 10) / 10,
+    totalPersonas,
+    datosGraficoDiario,
+    topServicios,
+  };
+};
+
+const calculatePercentageChange = (current: number, previous: number): number | null => {
+  if (previous === 0) return current > 0 ? 100 : null;
+  return Math.round(((current - previous) / previous) * 100);
+};
+
+const ChangeIndicator = ({ current, previous, isCurrency = false }: { current: number; previous: number; isCurrency?: boolean }) => {
+  const change = calculatePercentageChange(current, previous);
+  
+  if (change === null) return null;
+  
+  const isPositive = change > 0;
+  const isNeutral = change === 0;
+  
+  return (
+    <div className={cn(
+      "flex items-center gap-1 text-xs font-medium",
+      isPositive ? "text-green-600" : isNeutral ? "text-muted-foreground" : "text-red-600"
+    )}>
+      {isPositive ? (
+        <ArrowUpRight className="h-3 w-3" />
+      ) : isNeutral ? (
+        <Minus className="h-3 w-3" />
+      ) : (
+        <ArrowDownRight className="h-3 w-3" />
+      )}
+      <span>{isPositive ? '+' : ''}{change}%</span>
+      <span className="text-muted-foreground font-normal">
+        vs {isCurrency ? `$${previous.toFixed(2)}` : previous}
+      </span>
+    </div>
+  );
+};
+
 export default function Reportes() {
   const { toast } = useToast();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subDays(new Date(), 7),
     to: new Date(),
   });
+  const [compareEnabled, setCompareEnabled] = useState(false);
+  const [compareDateRange, setCompareDateRange] = useState<DateRange | undefined>();
+
+  // Auto-calculate comparison period based on selected range
+  const getAutoPreviousPeriod = (): DateRange | undefined => {
+    if (!dateRange?.from || !dateRange?.to) return undefined;
+    const days = differenceInDays(dateRange.to, dateRange.from);
+    return {
+      from: subDays(dateRange.from, days + 1),
+      to: subDays(dateRange.from, 1),
+    };
+  };
+
+  const effectiveCompareRange = compareDateRange || getAutoPreviousPeriod();
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['reportes-stats', dateRange?.from, dateRange?.to],
     queryFn: async () => {
       if (!dateRange?.from || !dateRange?.to) return null;
-
-      const fromDate = startOfDay(dateRange.from).toISOString();
-      const toDate = endOfDay(dateRange.to).toISOString();
-
-      // Tickets en el rango de fechas
-      const { data: tickets, error: ticketsError } = await supabase
-        .from('tickets')
-        .select('id, monto_total, monto_tiempo, monto_servicios, total_tiempo_cobrado_minutos, estado, created_at, personas')
-        .gte('created_at', fromDate)
-        .lte('created_at', toDate);
-      
-      if (ticketsError) throw ticketsError;
-
-      // Servicios vendidos en el rango
-      const { data: serviciosVendidos, error: serviciosError } = await supabase
-        .from('ticket_servicios')
-        .select(`
-          cantidad,
-          monto_total,
-          servicio_id,
-          servicios:servicio_id (nombre)
-        `)
-        .gte('created_at', fromDate)
-        .lte('created_at', toDate);
-
-      if (serviciosError) throw serviciosError;
-
-      // Tickets activos actuales
-      const { data: ticketsActivos, error: activosError } = await supabase
-        .from('tickets')
-        .select('id')
-        .eq('estado', 'activo');
-      
-      if (activosError) throw activosError;
-
-      // Calcular totales
-      const ticketsCerrados = tickets?.filter(t => t.estado === 'cerrado') || [];
-      const ventasTotales = ticketsCerrados.reduce((sum, t) => sum + (t.monto_total || 0), 0);
-      const ingresosTiempo = ticketsCerrados.reduce((sum, t) => sum + (t.monto_tiempo || 0), 0);
-      const ingresosServicios = ticketsCerrados.reduce((sum, t) => sum + (t.monto_servicios || 0), 0);
-      const totalMinutosCobrados = ticketsCerrados.reduce((sum, t) => sum + (t.total_tiempo_cobrado_minutos || 0), 0);
-      const totalHorasCobradas = totalMinutosCobrados / 60;
-      const totalPersonas = tickets?.reduce((sum, t) => sum + (t.personas || 1), 0) || 0;
-
-      // Agrupar por día para el gráfico
-      const ticketsPorDia: Record<string, { fecha: string; clientes: number; ingresos: number; horas: number }> = {};
-      
-      tickets?.forEach(ticket => {
-        const fecha = format(new Date(ticket.created_at), 'yyyy-MM-dd');
-        const fechaLabel = format(new Date(ticket.created_at), 'dd MMM', { locale: es });
-        
-        if (!ticketsPorDia[fecha]) {
-          ticketsPorDia[fecha] = { fecha: fechaLabel, clientes: 0, ingresos: 0, horas: 0 };
-        }
-        
-        ticketsPorDia[fecha].clientes += ticket.personas || 1;
-        
-        if (ticket.estado === 'cerrado') {
-          ticketsPorDia[fecha].ingresos += ticket.monto_total || 0;
-          ticketsPorDia[fecha].horas += (ticket.total_tiempo_cobrado_minutos || 0) / 60;
-        }
-      });
-
-      const datosGraficoDiario = Object.values(ticketsPorDia).map(d => ({
-        ...d,
-        ingresos: Math.round(d.ingresos * 100) / 100,
-        horas: Math.round(d.horas * 10) / 10,
-      }));
-
-      // Agrupar servicios
-      const serviciosAgrupados: Record<string, { nombre: string; cantidad: number; ingresos: number }> = {};
-      
-      serviciosVendidos?.forEach((sv: any) => {
-        const nombre = sv.servicios?.nombre || 'Servicio desconocido';
-        if (!serviciosAgrupados[sv.servicio_id]) {
-          serviciosAgrupados[sv.servicio_id] = { nombre, cantidad: 0, ingresos: 0 };
-        }
-        serviciosAgrupados[sv.servicio_id].cantidad += sv.cantidad;
-        serviciosAgrupados[sv.servicio_id].ingresos += sv.monto_total || 0;
-      });
-
-      const topServicios = Object.values(serviciosAgrupados)
-        .sort((a, b) => b.cantidad - a.cantidad)
-        .slice(0, 5);
-
-      return {
-        ticketsActivos: ticketsActivos?.length || 0,
-        totalTickets: tickets?.length || 0,
-        ticketsCerrados: ticketsCerrados.length,
-        ticketsCancelados: tickets?.filter(t => t.estado === 'cancelado').length || 0,
-        ventasTotales,
-        ingresosTiempo,
-        ingresosServicios,
-        totalHorasCobradas: Math.round(totalHorasCobradas * 10) / 10,
-        totalPersonas,
-        datosGraficoDiario,
-        topServicios,
-      };
+      return fetchPeriodStats(dateRange.from, dateRange.to);
     },
     enabled: !!dateRange?.from && !!dateRange?.to,
+  });
+
+  const { data: compareStats, isLoading: isLoadingCompare } = useQuery({
+    queryKey: ['reportes-compare-stats', effectiveCompareRange?.from, effectiveCompareRange?.to],
+    queryFn: async () => {
+      if (!effectiveCompareRange?.from || !effectiveCompareRange?.to) return null;
+      return fetchPeriodStats(effectiveCompareRange.from, effectiveCompareRange.to);
+    },
+    enabled: compareEnabled && !!effectiveCompareRange?.from && !!effectiveCompareRange?.to,
   });
 
   const statCards = [
     {
       title: 'Clientes Atendidos',
       value: stats?.totalPersonas || 0,
+      compareValue: compareStats?.totalPersonas || 0,
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
     },
     {
       title: 'Horas Cobradas',
-      value: `${stats?.totalHorasCobradas || 0} hrs`,
+      value: stats?.totalHorasCobradas || 0,
+      compareValue: compareStats?.totalHorasCobradas || 0,
       icon: Clock,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
+      suffix: ' hrs',
     },
     {
       title: 'Tickets Cerrados',
       value: stats?.ticketsCerrados || 0,
+      compareValue: compareStats?.ticketsCerrados || 0,
       icon: Ticket,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
     },
     {
       title: 'Ventas Totales',
-      value: `$${(stats?.ventasTotales || 0).toFixed(2)}`,
+      value: stats?.ventasTotales || 0,
+      compareValue: compareStats?.ventasTotales || 0,
       icon: DollarSign,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-100',
+      isCurrency: true,
     },
   ];
 
@@ -175,28 +250,43 @@ export default function Reportes() {
     const fromStr = format(dateRange.from, 'yyyy-MM-dd');
     const toStr = format(dateRange.to, 'yyyy-MM-dd');
     
-    const lines = [
+    const lines: (string | number)[][] = [
       ['Reporte de Operaciones RCReyes'],
       [`Período: ${format(dateRange.from, 'dd/MM/yyyy', { locale: es })} - ${format(dateRange.to, 'dd/MM/yyyy', { locale: es })}`],
       [],
       ['RESUMEN GENERAL'],
-      ['Métrica', 'Valor'],
-      ['Clientes Atendidos', stats.totalPersonas],
-      ['Tickets Cerrados', stats.ticketsCerrados],
-      ['Tickets Cancelados', stats.ticketsCancelados],
-      ['Horas Cobradas', stats.totalHorasCobradas],
-      ['Ingresos por Tiempo', `$${stats.ingresosTiempo.toFixed(2)}`],
-      ['Ingresos por Servicios', `$${stats.ingresosServicios.toFixed(2)}`],
-      ['Ventas Totales', `$${stats.ventasTotales.toFixed(2)}`],
-      [],
-      ['DESGLOSE DIARIO'],
-      ['Fecha', 'Clientes', 'Horas', 'Ingresos'],
-      ...stats.datosGraficoDiario.map(d => [d.fecha, d.clientes, d.horas, `$${d.ingresos.toFixed(2)}`]),
-      [],
-      ['SERVICIOS MÁS SOLICITADOS'],
-      ['Servicio', 'Cantidad', 'Ingresos'],
-      ...stats.topServicios.map(s => [s.nombre, s.cantidad, `$${s.ingresos.toFixed(2)}`]),
+      compareEnabled && compareStats 
+        ? ['Métrica', 'Valor Actual', 'Valor Anterior', 'Cambio %']
+        : ['Métrica', 'Valor'],
     ];
+
+    const metricas = [
+      ['Clientes Atendidos', stats.totalPersonas, compareStats?.totalPersonas],
+      ['Tickets Cerrados', stats.ticketsCerrados, compareStats?.ticketsCerrados],
+      ['Tickets Cancelados', stats.ticketsCancelados, compareStats?.ticketsCancelados],
+      ['Horas Cobradas', stats.totalHorasCobradas, compareStats?.totalHorasCobradas],
+      ['Ingresos por Tiempo', `$${stats.ingresosTiempo.toFixed(2)}`, compareStats ? `$${compareStats.ingresosTiempo.toFixed(2)}` : ''],
+      ['Ingresos por Servicios', `$${stats.ingresosServicios.toFixed(2)}`, compareStats ? `$${compareStats.ingresosServicios.toFixed(2)}` : ''],
+      ['Ventas Totales', `$${stats.ventasTotales.toFixed(2)}`, compareStats ? `$${compareStats.ventasTotales.toFixed(2)}` : ''],
+    ];
+
+    metricas.forEach(m => {
+      if (compareEnabled && compareStats) {
+        const change = calculatePercentageChange(Number(m[1]) || 0, Number(m[2]) || 0);
+        lines.push([m[0] as string, m[1], m[2] || '-', change !== null ? `${change}%` : '-']);
+      } else {
+        lines.push([m[0] as string, m[1]]);
+      }
+    });
+
+    lines.push([]);
+    lines.push(['DESGLOSE DIARIO']);
+    lines.push(['Fecha', 'Clientes', 'Horas', 'Ingresos']);
+    stats.datosGraficoDiario.forEach(d => lines.push([d.fecha, d.clientes, d.horas, `$${d.ingresos.toFixed(2)}`]));
+    lines.push([]);
+    lines.push(['SERVICIOS MÁS SOLICITADOS']);
+    lines.push(['Servicio', 'Cantidad', 'Ingresos']);
+    stats.topServicios.forEach(s => lines.push([s.nombre, s.cantidad, `$${s.ingresos.toFixed(2)}`]));
 
     const csvContent = lines.map(row => row.join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -217,26 +307,43 @@ export default function Reportes() {
     const toStr = format(dateRange.to, 'yyyy-MM-dd');
     const periodo = `${format(dateRange.from, 'dd/MM/yyyy', { locale: es })} - ${format(dateRange.to, 'dd/MM/yyyy', { locale: es })}`;
 
-    // Create workbook
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Resumen General
-    const resumenData = [
+    const resumenData: (string | number)[][] = [
       ['REPORTE DE OPERACIONES RCREYES'],
       [`Período: ${periodo}`],
-      [],
-      ['RESUMEN GENERAL'],
-      ['Métrica', 'Valor'],
-      ['Clientes Atendidos', stats.totalPersonas],
-      ['Tickets Cerrados', stats.ticketsCerrados],
-      ['Tickets Cancelados', stats.ticketsCancelados],
-      ['Horas Cobradas', stats.totalHorasCobradas],
-      ['Ingresos por Tiempo', stats.ingresosTiempo],
-      ['Ingresos por Servicios', stats.ingresosServicios],
-      ['Ventas Totales', stats.ventasTotales],
     ];
+    
+    if (compareEnabled && compareStats && effectiveCompareRange?.from && effectiveCompareRange?.to) {
+      resumenData.push([`Comparando con: ${format(effectiveCompareRange.from, 'dd/MM/yyyy', { locale: es })} - ${format(effectiveCompareRange.to, 'dd/MM/yyyy', { locale: es })}`]);
+    }
+    
+    resumenData.push([]);
+    resumenData.push(['RESUMEN GENERAL']);
+    
+    if (compareEnabled && compareStats) {
+      resumenData.push(['Métrica', 'Actual', 'Anterior', 'Cambio %']);
+      resumenData.push(['Clientes Atendidos', stats.totalPersonas, compareStats.totalPersonas, `${calculatePercentageChange(stats.totalPersonas, compareStats.totalPersonas) || 0}%`]);
+      resumenData.push(['Tickets Cerrados', stats.ticketsCerrados, compareStats.ticketsCerrados, `${calculatePercentageChange(stats.ticketsCerrados, compareStats.ticketsCerrados) || 0}%`]);
+      resumenData.push(['Tickets Cancelados', stats.ticketsCancelados, compareStats.ticketsCancelados, `${calculatePercentageChange(stats.ticketsCancelados, compareStats.ticketsCancelados) || 0}%`]);
+      resumenData.push(['Horas Cobradas', stats.totalHorasCobradas, compareStats.totalHorasCobradas, `${calculatePercentageChange(stats.totalHorasCobradas, compareStats.totalHorasCobradas) || 0}%`]);
+      resumenData.push(['Ingresos por Tiempo', stats.ingresosTiempo, compareStats.ingresosTiempo, `${calculatePercentageChange(stats.ingresosTiempo, compareStats.ingresosTiempo) || 0}%`]);
+      resumenData.push(['Ingresos por Servicios', stats.ingresosServicios, compareStats.ingresosServicios, `${calculatePercentageChange(stats.ingresosServicios, compareStats.ingresosServicios) || 0}%`]);
+      resumenData.push(['Ventas Totales', stats.ventasTotales, compareStats.ventasTotales, `${calculatePercentageChange(stats.ventasTotales, compareStats.ventasTotales) || 0}%`]);
+    } else {
+      resumenData.push(['Métrica', 'Valor']);
+      resumenData.push(['Clientes Atendidos', stats.totalPersonas]);
+      resumenData.push(['Tickets Cerrados', stats.ticketsCerrados]);
+      resumenData.push(['Tickets Cancelados', stats.ticketsCancelados]);
+      resumenData.push(['Horas Cobradas', stats.totalHorasCobradas]);
+      resumenData.push(['Ingresos por Tiempo', stats.ingresosTiempo]);
+      resumenData.push(['Ingresos por Servicios', stats.ingresosServicios]);
+      resumenData.push(['Ventas Totales', stats.ventasTotales]);
+    }
+    
     const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
-    wsResumen['!cols'] = [{ wch: 25 }, { wch: 20 }];
+    wsResumen['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 12 }];
     XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
 
     // Sheet 2: Desglose Diario
@@ -259,7 +366,6 @@ export default function Reportes() {
     wsServicios['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 15 }];
     XLSX.utils.book_append_sheet(wb, wsServicios, 'Servicios');
 
-    // Download
     XLSX.writeFile(wb, `reporte-rcreyes-${fromStr}-${toStr}.xlsx`);
     
     toast({ title: 'Exportado', description: 'Reporte Excel descargado exitosamente.' });
@@ -274,7 +380,6 @@ export default function Reportes() {
 
     const doc = new jsPDF();
     
-    // Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text('Reporte de Operaciones RCReyes', 14, 20);
@@ -283,29 +388,45 @@ export default function Reportes() {
     doc.setFont('helvetica', 'normal');
     doc.text(`Período: ${periodo}`, 14, 28);
     
-    // Resumen General
+    if (compareEnabled && compareStats && effectiveCompareRange?.from && effectiveCompareRange?.to) {
+      doc.text(`Comparando con: ${format(effectiveCompareRange.from, 'dd/MM/yyyy', { locale: es })} - ${format(effectiveCompareRange.to, 'dd/MM/yyyy', { locale: es })}`, 14, 34);
+    }
+    
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('Resumen General', 14, 42);
+    doc.text('Resumen General', 14, compareEnabled ? 46 : 42);
+    
+    const tableHead = compareEnabled && compareStats 
+      ? [['Métrica', 'Actual', 'Anterior', 'Cambio']]
+      : [['Métrica', 'Valor']];
+    
+    const tableBody = compareEnabled && compareStats ? [
+      ['Clientes Atendidos', stats.totalPersonas.toString(), compareStats.totalPersonas.toString(), `${calculatePercentageChange(stats.totalPersonas, compareStats.totalPersonas) || 0}%`],
+      ['Tickets Cerrados', stats.ticketsCerrados.toString(), compareStats.ticketsCerrados.toString(), `${calculatePercentageChange(stats.ticketsCerrados, compareStats.ticketsCerrados) || 0}%`],
+      ['Tickets Cancelados', stats.ticketsCancelados.toString(), compareStats.ticketsCancelados.toString(), `${calculatePercentageChange(stats.ticketsCancelados, compareStats.ticketsCancelados) || 0}%`],
+      ['Horas Cobradas', `${stats.totalHorasCobradas} hrs`, `${compareStats.totalHorasCobradas} hrs`, `${calculatePercentageChange(stats.totalHorasCobradas, compareStats.totalHorasCobradas) || 0}%`],
+      ['Ingresos por Tiempo', `$${stats.ingresosTiempo.toFixed(2)}`, `$${compareStats.ingresosTiempo.toFixed(2)}`, `${calculatePercentageChange(stats.ingresosTiempo, compareStats.ingresosTiempo) || 0}%`],
+      ['Ingresos por Servicios', `$${stats.ingresosServicios.toFixed(2)}`, `$${compareStats.ingresosServicios.toFixed(2)}`, `${calculatePercentageChange(stats.ingresosServicios, compareStats.ingresosServicios) || 0}%`],
+      ['Ventas Totales', `$${stats.ventasTotales.toFixed(2)}`, `$${compareStats.ventasTotales.toFixed(2)}`, `${calculatePercentageChange(stats.ventasTotales, compareStats.ventasTotales) || 0}%`],
+    ] : [
+      ['Clientes Atendidos', stats.totalPersonas.toString()],
+      ['Tickets Cerrados', stats.ticketsCerrados.toString()],
+      ['Tickets Cancelados', stats.ticketsCancelados.toString()],
+      ['Horas Cobradas', `${stats.totalHorasCobradas} hrs`],
+      ['Ingresos por Tiempo', `$${stats.ingresosTiempo.toFixed(2)}`],
+      ['Ingresos por Servicios', `$${stats.ingresosServicios.toFixed(2)}`],
+      ['Ventas Totales', `$${stats.ventasTotales.toFixed(2)}`],
+    ];
     
     autoTable(doc, {
-      startY: 46,
-      head: [['Métrica', 'Valor']],
-      body: [
-        ['Clientes Atendidos', stats.totalPersonas.toString()],
-        ['Tickets Cerrados', stats.ticketsCerrados.toString()],
-        ['Tickets Cancelados', stats.ticketsCancelados.toString()],
-        ['Horas Cobradas', `${stats.totalHorasCobradas} hrs`],
-        ['Ingresos por Tiempo', `$${stats.ingresosTiempo.toFixed(2)}`],
-        ['Ingresos por Servicios', `$${stats.ingresosServicios.toFixed(2)}`],
-        ['Ventas Totales', `$${stats.ventasTotales.toFixed(2)}`],
-      ],
+      startY: compareEnabled ? 50 : 46,
+      head: tableHead,
+      body: tableBody,
       theme: 'striped',
       headStyles: { fillColor: [220, 38, 38] },
       margin: { left: 14 },
     });
 
-    // Desglose Diario
     const finalY1 = (doc as any).lastAutoTable.finalY || 100;
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -325,10 +446,8 @@ export default function Reportes() {
       margin: { left: 14 },
     });
 
-    // Servicios más solicitados
     const finalY2 = (doc as any).lastAutoTable.finalY || 150;
     
-    // Check if we need a new page
     if (finalY2 > 230) {
       doc.addPage();
       doc.setFontSize(14);
@@ -366,7 +485,6 @@ export default function Reportes() {
       });
     }
 
-    // Footer
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -387,96 +505,161 @@ export default function Reportes() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Reportes</h1>
-            <p className="text-muted-foreground">Análisis de operaciones</p>
-          </div>
-          
-          <div className="flex gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="touch-button justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange?.from ? (
-                    dateRange.to ? (
-                      <>
-                        {format(dateRange.from, "dd MMM", { locale: es })} - {format(dateRange.to, "dd MMM yyyy", { locale: es })}
-                      </>
-                    ) : (
-                      format(dateRange.from, "dd MMM yyyy", { locale: es })
-                    )
-                  ) : (
-                    <span>Seleccionar fechas</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={setDateRange}
-                  numberOfMonths={1}
-                  locale={es}
-                />
-                <div className="p-3 border-t flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => setDateRange({ from: new Date(), to: new Date() })}
-                  >
-                    Hoy
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => setDateRange({ from: subDays(new Date(), 7), to: new Date() })}
-                  >
-                    Últimos 7 días
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => setDateRange({ from: subDays(new Date(), 30), to: new Date() })}
-                  >
-                    Últimos 30 días
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Reportes</h1>
+              <p className="text-muted-foreground">Análisis de operaciones</p>
+            </div>
             
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  disabled={!stats || isLoading}
-                  className="touch-button"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportar
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover">
-                <DropdownMenuItem onClick={exportToPDF} className="cursor-pointer">
-                  <FileText className="mr-2 h-4 w-4 text-destructive" />
-                  Exportar PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportToXLSX} className="cursor-pointer">
-                  <FileSpreadsheet className="mr-2 h-4 w-4 text-success" />
-                  Exportar Excel
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportToCSV} className="cursor-pointer">
-                  <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
-                  Exportar CSV
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="touch-button justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "dd MMM", { locale: es })} - {format(dateRange.to, "dd MMM yyyy", { locale: es })}
+                        </>
+                      ) : (
+                        format(dateRange.from, "dd MMM yyyy", { locale: es })
+                      )
+                    ) : (
+                      <span>Seleccionar fechas</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={1}
+                    locale={es}
+                    className="pointer-events-auto"
+                  />
+                  <div className="p-3 border-t flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => setDateRange({ from: new Date(), to: new Date() })}
+                    >
+                      Hoy
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => setDateRange({ from: subDays(new Date(), 7), to: new Date() })}
+                    >
+                      7 días
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => setDateRange({ from: subDays(new Date(), 30), to: new Date() })}
+                    >
+                      30 días
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    disabled={!stats || isLoading}
+                    className="touch-button"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Exportar
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-popover">
+                  <DropdownMenuItem onClick={exportToPDF} className="cursor-pointer">
+                    <FileText className="mr-2 h-4 w-4 text-destructive" />
+                    Exportar PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportToXLSX} className="cursor-pointer">
+                    <FileSpreadsheet className="mr-2 h-4 w-4 text-success" />
+                    Exportar Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportToCSV} className="cursor-pointer">
+                    <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
+                    Exportar CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
+
+          {/* Comparison controls */}
+          <Card className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="compare-mode" 
+                  checked={compareEnabled} 
+                  onCheckedChange={(checked) => {
+                    setCompareEnabled(checked);
+                    if (!checked) setCompareDateRange(undefined);
+                  }}
+                />
+                <Label htmlFor="compare-mode" className="font-medium">Comparar con período anterior</Label>
+              </div>
+              
+              {compareEnabled && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-muted-foreground">Comparando con:</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8">
+                        <CalendarIcon className="mr-2 h-3 w-3" />
+                        {effectiveCompareRange?.from && effectiveCompareRange?.to ? (
+                          <>
+                            {format(effectiveCompareRange.from, "dd MMM", { locale: es })} - {format(effectiveCompareRange.to, "dd MMM", { locale: es })}
+                          </>
+                        ) : (
+                          'Período automático'
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={effectiveCompareRange?.from}
+                        selected={compareDateRange || effectiveCompareRange}
+                        onSelect={setCompareDateRange}
+                        numberOfMonths={1}
+                        locale={es}
+                        className="pointer-events-auto"
+                      />
+                      <div className="p-3 border-t">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => setCompareDateRange(undefined)}
+                        >
+                          Usar período automático
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {isLoadingCompare && (
+                    <span className="text-xs text-muted-foreground">Cargando comparación...</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
 
         {isLoading ? (
@@ -496,7 +679,16 @@ export default function Reportes() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-2xl font-bold">{stat.value}</p>
+                    <p className="text-2xl font-bold">
+                      {stat.isCurrency ? `$${stat.value.toFixed(2)}` : `${stat.value}${stat.suffix || ''}`}
+                    </p>
+                    {compareEnabled && compareStats && (
+                      <ChangeIndicator 
+                        current={stat.value} 
+                        previous={stat.compareValue} 
+                        isCurrency={stat.isCurrency}
+                      />
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -638,6 +830,12 @@ export default function Reportes() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold text-red-600">{stats?.ticketsCancelados || 0}</p>
+                  {compareEnabled && compareStats && (
+                    <ChangeIndicator 
+                      current={stats?.ticketsCancelados || 0} 
+                      previous={compareStats.ticketsCancelados}
+                    />
+                  )}
                   <p className="text-xs text-muted-foreground">En el período seleccionado</p>
                 </CardContent>
               </Card>
@@ -650,6 +848,13 @@ export default function Reportes() {
                   <p className="text-2xl font-bold text-emerald-600">
                     ${stats?.ticketsCerrados ? ((stats.ventasTotales || 0) / stats.ticketsCerrados).toFixed(2) : '0.00'}
                   </p>
+                  {compareEnabled && compareStats && compareStats.ticketsCerrados > 0 && (
+                    <ChangeIndicator 
+                      current={stats?.ticketsCerrados ? (stats.ventasTotales / stats.ticketsCerrados) : 0} 
+                      previous={compareStats.ventasTotales / compareStats.ticketsCerrados}
+                      isCurrency
+                    />
+                  )}
                   <p className="text-xs text-muted-foreground">Ticket promedio</p>
                 </CardContent>
               </Card>

@@ -123,7 +123,26 @@ Este documento detalla las mejoras de experiencia de usuario (UX) y diseño de i
   - **PDF**: Documento formateado con tablas y encabezados
 - **Librerías utilizadas**: `xlsx`, `jspdf`, `jspdf-autotable`
 
-### 5.3 Métricas Adicionales ✅
+### 5.3 Comparación de Períodos ✅
+- **Estado**: Implementado
+- **Archivo**: `src/pages/Reportes.tsx`
+- **Funcionalidad**:
+  - Switch para activar/desactivar modo comparación
+  - Cálculo automático del período anterior equivalente
+  - Selector manual para período de comparación personalizado
+  - Indicadores visuales de cambio porcentual:
+    - Flecha verde hacia arriba (+%) para mejoras
+    - Flecha roja hacia abajo (-%) para disminuciones
+    - Guión gris (0%) para sin cambio
+  - Métricas comparadas:
+    - Clientes atendidos
+    - Horas cobradas
+    - Tickets cerrados/cancelados
+    - Ventas totales
+    - Promedio por ticket
+  - Exportación incluye datos comparativos en CSV, XLSX y PDF
+
+### 5.4 Métricas Adicionales ✅
 - **Estado**: Mejorado
 - **Nuevas métricas**:
   - Ingreso promedio por cliente
@@ -168,9 +187,9 @@ Este documento detalla las mejoras de experiencia de usuario (UX) y diseño de i
 ## 8. Próximas Mejoras (Roadmap)
 
 ### Fase 2:
-- [ ] Exportación a PDF y XLSX en reportes
-- [ ] Página de ayuda/guía de usuario
-- [ ] Comparación de períodos en reportes
+- [x] Exportación a PDF y XLSX en reportes
+- [x] Página de ayuda/guía de usuario
+- [x] Comparación de períodos en reportes
 - [ ] Navegación por teclado mejorada
 
 ### Fase 3:
