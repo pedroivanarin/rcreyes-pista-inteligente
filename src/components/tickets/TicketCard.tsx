@@ -110,27 +110,29 @@ export function TicketCard({ ticket, onPause, onResume }: TicketCardProps) {
           </div>
         </div>
 
-        {/* Actions - Stack on very small screens */}
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+        {/* Actions - Icons only on small cards, text on larger */}
+        <div className="flex gap-1.5 sm:gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 min-w-[60px] touch-target font-display text-xs sm:text-sm h-9 sm:h-10"
+            className="flex-1 touch-target font-display h-9 sm:h-10 px-2 sm:px-3"
             onClick={() => navigate(`/ticket/${ticket.id}`)}
+            title="Ver detalles"
           >
-            <Eye className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            Ver
+            <Eye className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline text-xs sm:text-sm">Ver</span>
           </Button>
           
           {isActive && onPause && (
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 min-w-[60px] touch-target font-display text-xs sm:text-sm h-9 sm:h-10 border-warning text-warning hover:bg-warning hover:text-white"
+              className="flex-1 touch-target font-display h-9 sm:h-10 px-2 sm:px-3 border-warning text-warning hover:bg-warning hover:text-white"
               onClick={() => onPause(ticket.id)}
+              title="Pausar ticket"
             >
-              <Pause className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Pausar
+              <Pause className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline text-xs sm:text-sm">Pausar</span>
             </Button>
           )}
           
@@ -138,22 +140,24 @@ export function TicketCard({ ticket, onPause, onResume }: TicketCardProps) {
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 min-w-[60px] touch-target font-display text-xs sm:text-sm h-9 sm:h-10 border-success text-success hover:bg-success hover:text-white"
+              className="flex-1 touch-target font-display h-9 sm:h-10 px-2 sm:px-3 border-success text-success hover:bg-success hover:text-white"
               onClick={() => onResume(ticket.id)}
+              title="Continuar ticket"
             >
-              <Play className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Seguir
+              <Play className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline text-xs sm:text-sm">Seguir</span>
             </Button>
           )}
           
           {(isActive || isPaused) && (
             <Button
               size="sm"
-              className="flex-1 min-w-[60px] touch-target font-display text-xs sm:text-sm h-9 sm:h-10 bg-primary hover:bg-primary/90"
+              className="flex-1 touch-target font-display h-9 sm:h-10 px-2 sm:px-3 bg-primary hover:bg-primary/90"
               onClick={() => navigate(`/cobro/${ticket.id}`)}
+              title="Cobrar ticket"
             >
-              <Flag className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Cobrar
+              <Flag className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline text-xs sm:text-sm">Cobrar</span>
             </Button>
           )}
         </div>
