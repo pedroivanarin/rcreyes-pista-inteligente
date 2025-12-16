@@ -10,10 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Pencil, User, Shield, Plus, Loader2, Trash2, Key } from 'lucide-react';
+import { Pencil, User, Shield, Plus, Loader2, Trash2, Key, Search, Users } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ActionTooltip } from '@/components/ui/action-tooltip';
 import type { AppRole } from '@/types/database';
 import { z } from 'zod';
 import { Separator } from '@/components/ui/separator';
@@ -58,6 +60,11 @@ export default function Usuarios() {
   const [newPasswordForEdit, setNewPasswordForEdit] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterRole, setFilterRole] = useState<string>('todos');
+  const [filterEstado, setFilterEstado] = useState<string>('todos');
 
   const { data: usuarios, isLoading } = useQuery({
     queryKey: ['usuarios'],
@@ -88,6 +95,20 @@ export default function Usuarios() {
 
       return usersWithRoles;
     },
+  });
+
+  // Filter logic
+  const filteredUsuarios = usuarios?.filter(usuario => {
+    const matchesSearch = 
+      usuario.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      usuario.email.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesRole = filterRole === 'todos' || usuario.role === filterRole;
+    const matchesEstado = filterEstado === 'todos' || 
+      (filterEstado === 'activo' && usuario.activo) ||
+      (filterEstado === 'inactivo' && !usuario.activo);
+    
+    return matchesSearch && matchesRole && matchesEstado;
   });
 
   const updateProfileMutation = useMutation({
@@ -311,11 +332,63 @@ export default function Usuarios() {
           </Button>
         </div>
 
+        {/* Search and Filters */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre o email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 touch-target"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Select value={filterRole} onValueChange={setFilterRole}>
+              <SelectTrigger className="w-[140px] touch-target">
+                <SelectValue placeholder="Rol" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los roles</SelectItem>
+                <SelectItem value="operador">Operador</SelectItem>
+                <SelectItem value="supervisor">Supervisor</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterEstado} onValueChange={setFilterEstado}>
+              <SelectTrigger className="w-[120px] touch-target">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="activo">Activos</SelectItem>
+                <SelectItem value="inactivo">Inactivos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground">Cargando...</div>
+        ) : filteredUsuarios?.length === 0 ? (
+          usuarios?.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No hay usuarios registrados"
+              description="Crea el primer usuario para comenzar."
+              actionLabel="Crear Usuario"
+              onAction={openCreateDialog}
+            />
+          ) : (
+            <EmptyState
+              icon={Search}
+              title="Sin resultados"
+              description="No se encontraron usuarios con los filtros seleccionados."
+            />
+          )
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {usuarios?.map((usuario) => (
+            {filteredUsuarios?.map((usuario) => (
               <Card key={usuario.id} className={!usuario.activo ? 'opacity-60' : ''}>
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
@@ -325,17 +398,21 @@ export default function Usuarios() {
                     </div>
                     {usuario.id !== user?.id && (
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(usuario)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => openDeleteDialog(usuario)}
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <ActionTooltip label="Editar usuario">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(usuario)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </ActionTooltip>
+                        <ActionTooltip label="Eliminar usuario">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => openDeleteDialog(usuario)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </ActionTooltip>
                       </div>
                     )}
                   </div>

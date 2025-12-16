@@ -10,9 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Pencil, Clock } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Plus, Pencil, Clock, Search, Trash2 } from 'lucide-react';
 import { CardSkeletonGrid } from '@/components/ui/card-skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ActionTooltip } from '@/components/ui/action-tooltip';
 import type { TarifaHora, TipoRedondeo } from '@/types/database';
 
 export default function Tarifas() {
@@ -20,6 +23,15 @@ export default function Tarifas() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTarifa, setEditingTarifa] = useState<TarifaHora | null>(null);
+  
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterEstado, setFilterEstado] = useState<string>('todos');
+  
+  // Delete state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [tarifaToDelete, setTarifaToDelete] = useState<TarifaHora | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: tarifas, isLoading } = useQuery({
     queryKey: ['tarifas'],
@@ -67,6 +79,42 @@ export default function Tarifas() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('tarifas_hora')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tarifas'] });
+      setDeleteDialogOpen(false);
+      setTarifaToDelete(null);
+      toast({
+        title: 'Tarifa eliminada',
+        description: 'La tarifa ha sido eliminada.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'No se pudo eliminar la tarifa. Puede tener tickets asociados.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Filter logic
+  const filteredTarifas = tarifas?.filter(tarifa => {
+    const matchesSearch = tarifa.nombre.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesEstado = filterEstado === 'todos' || 
+      (filterEstado === 'activo' && tarifa.activo) ||
+      (filterEstado === 'inactivo' && !tarifa.activo);
+    
+    return matchesSearch && matchesEstado;
+  });
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -90,17 +138,32 @@ export default function Tarifas() {
     setIsDialogOpen(true);
   };
 
+  const openDeleteDialog = (tarifa: TarifaHora) => {
+    setTarifaToDelete(tarifa);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!tarifaToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteMutation.mutateAsync(tarifaToDelete.id);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">Tarifas por Hora</h1>
             <p className="text-muted-foreground">Administra las tarifas de tiempo de pista</p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openNew} className="touch-target">
+              <Button onClick={openNew} className="touch-button">
                 <Plus className="h-5 w-5 mr-2" />
                 Nueva Tarifa
               </Button>
@@ -119,6 +182,7 @@ export default function Tarifas() {
                     name="nombre" 
                     defaultValue={editingTarifa?.nombre}
                     required 
+                    className="touch-target"
                   />
                 </div>
                 
@@ -131,6 +195,7 @@ export default function Tarifas() {
                     step="0.01"
                     defaultValue={editingTarifa?.precio_por_hora}
                     required 
+                    className="touch-target"
                   />
                 </div>
                 
@@ -142,13 +207,14 @@ export default function Tarifas() {
                     type="number"
                     defaultValue={editingTarifa?.minutos_minimos || 10}
                     required 
+                    className="touch-target"
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="tipo_redondeo">Tipo de Redondeo</Label>
                   <Select name="tipo_redondeo" defaultValue={editingTarifa?.tipo_redondeo || 'arriba'}>
-                    <SelectTrigger>
+                    <SelectTrigger className="touch-target">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -181,11 +247,57 @@ export default function Tarifas() {
           </Dialog>
         </div>
 
+        {/* Search and Filters */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 touch-target"
+            />
+          </div>
+          <Select value={filterEstado} onValueChange={setFilterEstado}>
+            <SelectTrigger className="w-[130px] touch-target">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="activo">Activas</SelectItem>
+              <SelectItem value="inactivo">Inactivas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Results count */}
+        {!isLoading && filteredTarifas && (
+          <p className="text-sm text-muted-foreground">
+            {filteredTarifas.length} {filteredTarifas.length === 1 ? 'tarifa encontrada' : 'tarifas encontradas'}
+          </p>
+        )}
+
         {isLoading ? (
           <CardSkeletonGrid count={3} />
+        ) : filteredTarifas?.length === 0 ? (
+          tarifas?.length === 0 ? (
+            <EmptyState
+              icon={Clock}
+              title="No hay tarifas configuradas"
+              description="Configura tu primera tarifa para comenzar a cobrar tiempo de pista a los clientes."
+              actionLabel="Agregar Tarifa"
+              onAction={openNew}
+            />
+          ) : (
+            <EmptyState
+              icon={Search}
+              title="Sin resultados"
+              description="No se encontraron tarifas con los filtros seleccionados."
+            />
+          )
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {tarifas?.map((tarifa) => (
+            {filteredTarifas?.map((tarifa) => (
               <Card key={tarifa.id} className={!tarifa.activo ? 'opacity-60' : ''}>
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
@@ -193,16 +305,30 @@ export default function Tarifas() {
                       <Clock className="h-5 w-5 text-muted-foreground" />
                       <CardTitle className="text-lg">{tarifa.nombre}</CardTitle>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(tarifa)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <ActionTooltip label="Editar tarifa">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(tarifa)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </ActionTooltip>
+                      <ActionTooltip label="Eliminar tarifa">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => openDeleteDialog(tarifa)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </ActionTooltip>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-2xl font-bold">${tarifa.precio_por_hora.toFixed(2)}/hr</span>
                     <Badge variant={tarifa.activo ? 'default' : 'secondary'}>
-                      {tarifa.activo ? 'Activo' : 'Inactivo'}
+                      {tarifa.activo ? 'Activa' : 'Inactiva'}
                     </Badge>
                   </div>
                   <div className="text-sm text-muted-foreground space-y-1">
@@ -214,6 +340,29 @@ export default function Tarifas() {
             ))}
           </div>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar tarifa?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción eliminará la tarifa "{tarifaToDelete?.nombre}" permanentemente. 
+                No se puede deshacer. Si la tarifa tiene tickets asociados, no podrá ser eliminada.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? 'Eliminando...' : 'Eliminar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

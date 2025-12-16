@@ -10,9 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Pencil, User, Plus, Loader2, Trash2, Search, Crown, Percent } from 'lucide-react';
+import { Pencil, User, Plus, Loader2, Trash2, Search, Crown, Percent, Users } from 'lucide-react';
 import { CardSkeletonGrid } from '@/components/ui/card-skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ActionTooltip } from '@/components/ui/action-tooltip';
 import type { TipoMembresia } from '@/types/database';
 import { MEMBRESIA_CONFIG } from '@/lib/constants';
 import { z } from 'zod';
@@ -58,6 +60,9 @@ export default function Clientes() {
   const [newMembresia, setNewMembresia] = useState<TipoMembresia>('ninguna');
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Filter state
+  const [filterMembresia, setFilterMembresia] = useState<string>('todos');
 
   const { data: clientes, isLoading } = useQuery({
     queryKey: ['clientes'],
@@ -104,11 +109,22 @@ export default function Clientes() {
     },
   });
 
-  const filteredClientes = clientes?.filter(cliente => 
-    cliente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cliente.codigo_cliente?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cliente.telefono?.includes(searchTerm)
-  );
+  const filteredClientes = clientes?.filter(cliente => {
+    const matchesSearch = 
+      cliente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      cliente.codigo_cliente?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      cliente.telefono?.includes(searchTerm);
+    
+    const matchesMembresia = filterMembresia === 'todos' || cliente.membresia === filterMembresia;
+    
+    return matchesSearch && matchesMembresia;
+  });
+  
+  // Handler para cambio de filtro
+  const handleFilterChange = (value: string) => {
+    setFilterMembresia(value);
+    setCurrentPage(1);
+  };
 
   // Paginación
   const totalItems = filteredClientes?.length || 0;
@@ -274,16 +290,37 @@ export default function Clientes() {
           </Button>
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nombre, código o teléfono..."
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-10 touch-target"
-          />
+        {/* Search and Filters */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre, código o teléfono..."
+              value={searchTerm}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-10 touch-target"
+            />
+          </div>
+          <Select value={filterMembresia} onValueChange={handleFilterChange}>
+            <SelectTrigger className="w-[160px] touch-target">
+              <SelectValue placeholder="Membresía" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas las membresías</SelectItem>
+              <SelectItem value="ninguna">Sin membresía</SelectItem>
+              <SelectItem value="basica">Básica</SelectItem>
+              <SelectItem value="premium">Premium</SelectItem>
+              <SelectItem value="vip">VIP</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+
+        {/* Results count */}
+        {!isLoading && filteredClientes && (
+          <p className="text-sm text-muted-foreground">
+            {filteredClientes.length} {filteredClientes.length === 1 ? 'cliente encontrado' : 'clientes encontrados'}
+          </p>
+        )}
 
         {isLoading ? (
           <CardSkeletonGrid count={6} />
@@ -302,17 +339,21 @@ export default function Clientes() {
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(cliente)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => openDeleteDialog(cliente)}
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <ActionTooltip label="Editar cliente">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(cliente)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </ActionTooltip>
+                        <ActionTooltip label="Eliminar cliente">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => openDeleteDialog(cliente)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </ActionTooltip>
                       </div>
                     </div>
                   </CardHeader>
@@ -337,9 +378,21 @@ export default function Clientes() {
               ))}
               
               {paginatedClientes?.length === 0 && (
-                <div className="col-span-full text-center py-8 text-muted-foreground">
-                  No se encontraron clientes
-                </div>
+                clientes?.length === 0 ? (
+                  <EmptyState
+                    icon={Users}
+                    title="No hay clientes registrados"
+                    description="Comienza agregando tu primer cliente para gestionar sus visitas y membresías."
+                    actionLabel="Agregar Cliente"
+                    onAction={openCreateDialog}
+                  />
+                ) : (
+                  <EmptyState
+                    icon={Search}
+                    title="Sin resultados"
+                    description="No se encontraron clientes con los filtros seleccionados."
+                  />
+                )
               )}
             </div>
 
