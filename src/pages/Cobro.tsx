@@ -56,6 +56,8 @@ export default function Cobro() {
   const [cobrado, setCobrado] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchData = async () => {
       if (!id) return;
 
@@ -71,9 +73,23 @@ export default function Cobro() {
           .eq('id', id)
           .maybeSingle();
 
+        if (!isMounted) return;
+
         if (ticketError) throw ticketError;
         if (!ticketData) {
           toast.error('Ticket no encontrado');
+          navigate('/dashboard');
+          return;
+        }
+
+        // If ticket is already closed, set cobrado state and show the data
+        if (ticketData.estado === 'cerrado') {
+          setCobrado(true);
+        }
+
+        // If ticket is cancelled, redirect
+        if (ticketData.estado === 'cancelado') {
+          toast.error('Este ticket fue cancelado');
           navigate('/dashboard');
           return;
         }
@@ -89,24 +105,42 @@ export default function Cobro() {
           `)
           .eq('ticket_id', id);
 
+        if (!isMounted) return;
         setServicios((serviciosData || []) as TicketServicio[]);
 
-        // Calculate time
-        const { data: calculoData } = await supabase
-          .rpc('calcular_tiempo_cobrable', { p_ticket_id: id });
+        // Calculate time - use stored values if ticket is closed
+        if (ticketData.estado === 'cerrado' && ticketData.monto_tiempo !== null) {
+          setCalculo({
+            tiempo_real_minutos: ticketData.total_tiempo_cobrado_minutos || 0,
+            tiempo_cobrado_minutos: ticketData.total_tiempo_cobrado_minutos || 0,
+            costo_tiempo: ticketData.monto_tiempo || 0,
+          });
+        } else {
+          const { data: calculoData } = await supabase
+            .rpc('calcular_tiempo_cobrable', { p_ticket_id: id });
 
-        if (calculoData && calculoData.length > 0) {
-          setCalculo(calculoData[0]);
+          if (!isMounted) return;
+          if (calculoData && calculoData.length > 0) {
+            setCalculo(calculoData[0]);
+          }
         }
       } catch (error) {
         console.error('Error:', error);
-        toast.error('Error al cargar el cobro');
+        if (isMounted) {
+          toast.error('Error al cargar el cobro');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [id, navigate]);
 
   const subtotalServicios = servicios.reduce((sum, s) => sum + s.monto_total, 0);
