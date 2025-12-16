@@ -6,16 +6,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { CalendarIcon, DollarSign, Clock, Users, Ticket, TrendingUp, Package, Download } from 'lucide-react';
+import { CalendarIcon, DollarSign, Clock, Users, Ticket, TrendingUp, Package, Download, FileText, FileSpreadsheet, ChevronDown } from 'lucide-react';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import type { DateRange } from 'react-day-picker';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
 export default function Reportes() {
+  const { toast } = useToast();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subDays(new Date(), 7),
     to: new Date(),
@@ -169,7 +175,6 @@ export default function Reportes() {
     const fromStr = format(dateRange.from, 'yyyy-MM-dd');
     const toStr = format(dateRange.to, 'yyyy-MM-dd');
     
-    // Crear contenido CSV
     const lines = [
       ['Reporte de Operaciones RCReyes'],
       [`Período: ${format(dateRange.from, 'dd/MM/yyyy', { locale: es })} - ${format(dateRange.to, 'dd/MM/yyyy', { locale: es })}`],
@@ -201,6 +206,182 @@ export default function Reportes() {
     link.download = `reporte-rcreyes-${fromStr}-${toStr}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+    
+    toast({ title: 'Exportado', description: 'Reporte CSV descargado exitosamente.' });
+  };
+
+  const exportToXLSX = () => {
+    if (!stats || !dateRange?.from || !dateRange?.to) return;
+
+    const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+    const toStr = format(dateRange.to, 'yyyy-MM-dd');
+    const periodo = `${format(dateRange.from, 'dd/MM/yyyy', { locale: es })} - ${format(dateRange.to, 'dd/MM/yyyy', { locale: es })}`;
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Resumen General
+    const resumenData = [
+      ['REPORTE DE OPERACIONES RCREYES'],
+      [`Período: ${periodo}`],
+      [],
+      ['RESUMEN GENERAL'],
+      ['Métrica', 'Valor'],
+      ['Clientes Atendidos', stats.totalPersonas],
+      ['Tickets Cerrados', stats.ticketsCerrados],
+      ['Tickets Cancelados', stats.ticketsCancelados],
+      ['Horas Cobradas', stats.totalHorasCobradas],
+      ['Ingresos por Tiempo', stats.ingresosTiempo],
+      ['Ingresos por Servicios', stats.ingresosServicios],
+      ['Ventas Totales', stats.ventasTotales],
+    ];
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+    wsResumen['!cols'] = [{ wch: 25 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
+
+    // Sheet 2: Desglose Diario
+    const diarioData = [
+      ['DESGLOSE DIARIO'],
+      ['Fecha', 'Clientes', 'Horas', 'Ingresos'],
+      ...stats.datosGraficoDiario.map(d => [d.fecha, d.clientes, d.horas, d.ingresos]),
+    ];
+    const wsDiario = XLSX.utils.aoa_to_sheet(diarioData);
+    wsDiario['!cols'] = [{ wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, wsDiario, 'Diario');
+
+    // Sheet 3: Servicios
+    const serviciosData = [
+      ['SERVICIOS MÁS SOLICITADOS'],
+      ['Servicio', 'Cantidad', 'Ingresos'],
+      ...stats.topServicios.map(s => [s.nombre, s.cantidad, s.ingresos]),
+    ];
+    const wsServicios = XLSX.utils.aoa_to_sheet(serviciosData);
+    wsServicios['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, wsServicios, 'Servicios');
+
+    // Download
+    XLSX.writeFile(wb, `reporte-rcreyes-${fromStr}-${toStr}.xlsx`);
+    
+    toast({ title: 'Exportado', description: 'Reporte Excel descargado exitosamente.' });
+  };
+
+  const exportToPDF = () => {
+    if (!stats || !dateRange?.from || !dateRange?.to) return;
+
+    const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+    const toStr = format(dateRange.to, 'yyyy-MM-dd');
+    const periodo = `${format(dateRange.from, 'dd/MM/yyyy', { locale: es })} - ${format(dateRange.to, 'dd/MM/yyyy', { locale: es })}`;
+
+    const doc = new jsPDF();
+    
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Reporte de Operaciones RCReyes', 14, 20);
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Período: ${periodo}`, 14, 28);
+    
+    // Resumen General
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Resumen General', 14, 42);
+    
+    autoTable(doc, {
+      startY: 46,
+      head: [['Métrica', 'Valor']],
+      body: [
+        ['Clientes Atendidos', stats.totalPersonas.toString()],
+        ['Tickets Cerrados', stats.ticketsCerrados.toString()],
+        ['Tickets Cancelados', stats.ticketsCancelados.toString()],
+        ['Horas Cobradas', `${stats.totalHorasCobradas} hrs`],
+        ['Ingresos por Tiempo', `$${stats.ingresosTiempo.toFixed(2)}`],
+        ['Ingresos por Servicios', `$${stats.ingresosServicios.toFixed(2)}`],
+        ['Ventas Totales', `$${stats.ventasTotales.toFixed(2)}`],
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: [220, 38, 38] },
+      margin: { left: 14 },
+    });
+
+    // Desglose Diario
+    const finalY1 = (doc as any).lastAutoTable.finalY || 100;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Desglose Diario', 14, finalY1 + 12);
+    
+    autoTable(doc, {
+      startY: finalY1 + 16,
+      head: [['Fecha', 'Clientes', 'Horas', 'Ingresos']],
+      body: stats.datosGraficoDiario.map(d => [
+        d.fecha,
+        d.clientes.toString(),
+        d.horas.toString(),
+        `$${d.ingresos.toFixed(2)}`,
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: [220, 38, 38] },
+      margin: { left: 14 },
+    });
+
+    // Servicios más solicitados
+    const finalY2 = (doc as any).lastAutoTable.finalY || 150;
+    
+    // Check if we need a new page
+    if (finalY2 > 230) {
+      doc.addPage();
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Servicios Más Solicitados', 14, 20);
+      
+      autoTable(doc, {
+        startY: 24,
+        head: [['Servicio', 'Cantidad', 'Ingresos']],
+        body: stats.topServicios.map(s => [
+          s.nombre,
+          s.cantidad.toString(),
+          `$${s.ingresos.toFixed(2)}`,
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [220, 38, 38] },
+        margin: { left: 14 },
+      });
+    } else {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Servicios Más Solicitados', 14, finalY2 + 12);
+      
+      autoTable(doc, {
+        startY: finalY2 + 16,
+        head: [['Servicio', 'Cantidad', 'Ingresos']],
+        body: stats.topServicios.map(s => [
+          s.nombre,
+          s.cantidad.toString(),
+          `$${s.ingresos.toFixed(2)}`,
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [220, 38, 38] },
+        margin: { left: 14 },
+      });
+    }
+
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        `Generado el ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: es })} - Página ${i} de ${pageCount}`,
+        14,
+        doc.internal.pageSize.height - 10
+      );
+    }
+
+    doc.save(`reporte-rcreyes-${fromStr}-${toStr}.pdf`);
+    
+    toast({ title: 'Exportado', description: 'Reporte PDF descargado exitosamente.' });
   };
 
   return (
@@ -269,14 +450,32 @@ export default function Reportes() {
               </PopoverContent>
             </Popover>
             
-            <Button 
-              onClick={exportToCSV} 
-              disabled={!stats || isLoading}
-              className="touch-button"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Exportar CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  disabled={!stats || isLoading}
+                  className="touch-button"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-popover">
+                <DropdownMenuItem onClick={exportToPDF} className="cursor-pointer">
+                  <FileText className="mr-2 h-4 w-4 text-destructive" />
+                  Exportar PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToXLSX} className="cursor-pointer">
+                  <FileSpreadsheet className="mr-2 h-4 w-4 text-success" />
+                  Exportar Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToCSV} className="cursor-pointer">
+                  <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
+                  Exportar CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

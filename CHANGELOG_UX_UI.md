@@ -108,9 +108,13 @@ Este documento detalla las mejoras de experiencia de usuario (UX) y diseño de i
   - Atajos: Hoy, Últimos 7 días, Últimos 30 días
 
 ### 5.2 Exportación ✅
-- **Estado**: CSV implementado
+- **Estado**: Implementado completamente
 - **Archivo**: `src/pages/Reportes.tsx`
-- **Mejoras pendientes**: PDF, XLSX (requiere librerías adicionales)
+- **Formatos disponibles**:
+  - **CSV**: Archivo de texto delimitado por comas
+  - **XLSX**: Excel con múltiples hojas (Resumen, Diario, Servicios)
+  - **PDF**: Documento formateado con tablas y encabezados
+- **Librerías utilizadas**: `xlsx`, `jspdf`, `jspdf-autotable`
 
 ### 5.3 Métricas Adicionales ✅
 - **Estado**: Mejorado
