@@ -140,6 +140,10 @@ Este documento detalla las mejoras de experiencia de usuario (UX) y diseño de i
     - Tickets cerrados/cancelados
     - Ventas totales
     - Promedio por ticket
+  - **Gráficos comparativos lado a lado**:
+    - Gráfico horizontal de métricas (Clientes, Tickets, Horas) con barras actual vs anterior
+    - Gráfico de ingresos comparativo (Tiempo, Servicios, Total) con barras lado a lado
+    - Colores diferenciados: color primario para actual, gris para anterior
   - Exportación incluye datos comparativos en CSV, XLSX y PDF
 
 ### 5.4 Métricas Adicionales ✅
