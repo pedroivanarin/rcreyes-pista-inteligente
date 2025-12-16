@@ -171,6 +171,26 @@ export default function Cobro() {
 
       if (updateError) throw updateError;
 
+      // Return inventory for rented services
+      for (const ts of servicios) {
+        if (ts.servicio?.requiere_inventario) {
+          // Get current stock
+          const { data: servicioData } = await supabase
+            .from('servicios')
+            .select('stock_actual')
+            .eq('id', ts.servicio_id)
+            .single();
+
+          if (servicioData && servicioData.stock_actual !== null) {
+            // Return the rented quantity to stock
+            await supabase
+              .from('servicios')
+              .update({ stock_actual: servicioData.stock_actual + ts.cantidad })
+              .eq('id', ts.servicio_id);
+          }
+        }
+      }
+
       // Create audit record
       await supabase.from('auditorias').insert({
         user_id: user.id,
@@ -182,6 +202,9 @@ export default function Cobro() {
           monto_total: total,
           metodo_pago: metodoPago,
           tiempo_cobrado: calculo.tiempo_cobrado_minutos,
+          stock_devuelto: servicios
+            .filter(s => s.servicio?.requiere_inventario)
+            .map(s => ({ servicio: s.servicio?.nombre, cantidad: s.cantidad })),
         },
       });
 
