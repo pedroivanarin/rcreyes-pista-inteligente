@@ -322,6 +322,7 @@ export type Database = {
           hora_entrada: string
           hora_salida: string | null
           id: string
+          imprimir_individual: boolean
           metodo_pago: Database["public"]["Enums"]["metodo_pago"] | null
           monto_servicios: number | null
           monto_tiempo: number | null
@@ -343,6 +344,7 @@ export type Database = {
           hora_entrada?: string
           hora_salida?: string | null
           id?: string
+          imprimir_individual?: boolean
           metodo_pago?: Database["public"]["Enums"]["metodo_pago"] | null
           monto_servicios?: number | null
           monto_tiempo?: number | null
@@ -364,6 +366,7 @@ export type Database = {
           hora_entrada?: string
           hora_salida?: string | null
           id?: string
+          imprimir_individual?: boolean
           metodo_pago?: Database["public"]["Enums"]["metodo_pago"] | null
           monto_servicios?: number | null
           monto_tiempo?: number | null

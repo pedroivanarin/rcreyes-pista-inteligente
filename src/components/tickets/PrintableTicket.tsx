@@ -3,11 +3,12 @@ import { Ticket } from '@/types/database';
 
 interface PrintableTicketProps {
   ticket: Ticket;
-  personNumber: number;
+  personNumber?: number;
   totalPersons: number;
+  isGroupTicket?: boolean;
 }
 
-export function PrintableTicket({ ticket, personNumber, totalPersons }: PrintableTicketProps) {
+export function PrintableTicket({ ticket, personNumber, totalPersons, isGroupTicket = false }: PrintableTicketProps) {
   const entryTime = new Date(ticket.hora_entrada).toLocaleString('es-MX', {
     dateStyle: 'short',
     timeStyle: 'short',
@@ -31,9 +32,15 @@ export function PrintableTicket({ ticket, personNumber, totalPersons }: Printabl
       <div className="print-ticket-info">
         <p><strong>Cliente:</strong> {ticket.cliente?.nombre}</p>
         <p><strong>Entrada:</strong> {entryTime}</p>
-        <p className="print-ticket-person">
-          Persona {personNumber} de {totalPersons}
-        </p>
+        {isGroupTicket ? (
+          <p className="print-ticket-person">
+            {totalPersons} persona{totalPersons > 1 ? 's' : ''}
+          </p>
+        ) : (
+          <p className="print-ticket-person">
+            Persona {personNumber} de {totalPersons}
+          </p>
+        )}
       </div>
       
       <div className="print-ticket-footer">
@@ -53,14 +60,25 @@ export function PrintableTicketsContainer({ ticket, onClose }: PrintableTicketsC
     window.print();
   };
 
-  const tickets = Array.from({ length: ticket.personas }, (_, i) => i + 1);
+  const isGroupTicket = !ticket.imprimir_individual;
+  const tickets = isGroupTicket 
+    ? [1] // Single group ticket
+    : Array.from({ length: ticket.personas }, (_, i) => i + 1); // Individual tickets
 
   return (
     <div className="print-container">
       {/* Print controls - hidden when printing */}
       <div className="print-controls no-print">
+        <div className="text-center mb-4">
+          <p className="text-sm text-muted-foreground">
+            {isGroupTicket 
+              ? `1 ticket grupal (${ticket.personas} personas)` 
+              : `${ticket.personas} ticket${ticket.personas > 1 ? 's' : ''} individual${ticket.personas > 1 ? 'es' : ''}`
+            }
+          </p>
+        </div>
         <button onClick={handlePrint} className="print-btn">
-          Imprimir {ticket.personas} ticket{ticket.personas > 1 ? 's' : ''}
+          Imprimir {isGroupTicket ? '1 ticket' : `${ticket.personas} ticket${ticket.personas > 1 ? 's' : ''}`}
         </button>
         <button onClick={onClose} className="print-btn-secondary">
           Cerrar
@@ -73,8 +91,9 @@ export function PrintableTicketsContainer({ ticket, onClose }: PrintableTicketsC
           <PrintableTicket
             key={num}
             ticket={ticket}
-            personNumber={num}
+            personNumber={isGroupTicket ? undefined : num}
             totalPersons={ticket.personas}
+            isGroupTicket={isGroupTicket}
           />
         ))}
       </div>

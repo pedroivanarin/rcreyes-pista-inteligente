@@ -40,6 +40,7 @@ export default function NuevoTicket() {
   
   const [personas, setPersonas] = useState(1);
   const [notas, setNotas] = useState('');
+  const [imprimirIndividual, setImprimirIndividual] = useState(true);
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -195,6 +196,7 @@ export default function NuevoTicket() {
           tarifa_hora_id: tarifaActiva.id,
           operador_entrada_id: user.id,
           notas: notas.trim() || null,
+          imprimir_individual: imprimirIndividual,
         })
         .select('id, codigo')
         .single();
@@ -458,6 +460,20 @@ export default function NuevoTicket() {
                   </Button>
                 </div>
               </div>
+
+              {/* Print option - show only when multiple people */}
+              {personas > 1 && (
+                <div className="flex items-center gap-2 pt-2 border-t">
+                  <Checkbox 
+                    id="imprimir-individual" 
+                    checked={imprimirIndividual}
+                    onCheckedChange={(checked) => setImprimirIndividual(!!checked)}
+                  />
+                  <label htmlFor="imprimir-individual" className="text-sm cursor-pointer">
+                    Imprimir tickets individuales (uno por persona)
+                  </label>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="notas">Observaciones</Label>

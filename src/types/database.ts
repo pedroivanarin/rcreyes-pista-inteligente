@@ -83,6 +83,7 @@ export interface Ticket {
   metodo_pago?: MetodoPago;
   motivo_cancelacion?: string;
   notas?: string;
+  imprimir_individual: boolean;
   created_at: string;
   updated_at: string;
   // Relaciones
