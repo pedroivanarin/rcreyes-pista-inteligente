@@ -694,6 +694,109 @@ export default function Reportes() {
               ))}
             </div>
 
+            {/* Gráfico comparativo de métricas */}
+            {compareEnabled && compareStats && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle>Comparación de Métricas</CardTitle>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Período actual vs anterior</p>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart
+                      data={[
+                        {
+                          metrica: 'Clientes',
+                          actual: stats?.totalPersonas || 0,
+                          anterior: compareStats.totalPersonas,
+                        },
+                        {
+                          metrica: 'Tickets',
+                          actual: stats?.ticketsCerrados || 0,
+                          anterior: compareStats.ticketsCerrados,
+                        },
+                        {
+                          metrica: 'Horas',
+                          actual: stats?.totalHorasCobradas || 0,
+                          anterior: compareStats.totalHorasCobradas,
+                        },
+                      ]}
+                      layout="vertical"
+                      margin={{ left: 20, right: 20 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={true} vertical={false} />
+                      <XAxis type="number" className="text-xs" />
+                      <YAxis type="category" dataKey="metrica" className="text-xs" width={70} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="actual" fill="hsl(var(--primary))" name="Actual" radius={[0, 4, 4, 0]} barSize={20} />
+                      <Bar dataKey="anterior" fill="hsl(var(--muted-foreground))" name="Anterior" radius={[0, 4, 4, 0]} barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Gráfico comparativo de ingresos */}
+            {compareEnabled && compareStats && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle>Comparación de Ingresos</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart
+                      data={[
+                        {
+                          categoria: 'Tiempo',
+                          actual: stats?.ingresosTiempo || 0,
+                          anterior: compareStats.ingresosTiempo,
+                        },
+                        {
+                          categoria: 'Servicios',
+                          actual: stats?.ingresosServicios || 0,
+                          anterior: compareStats.ingresosServicios,
+                        },
+                        {
+                          categoria: 'Total',
+                          actual: stats?.ventasTotales || 0,
+                          anterior: compareStats.ventasTotales,
+                        },
+                      ]}
+                      margin={{ left: 20, right: 20 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="categoria" className="text-xs" />
+                      <YAxis className="text-xs" tickFormatter={(v) => `$${v}`} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                        formatter={(value: number) => [`$${value.toFixed(2)}`, '']}
+                      />
+                      <Legend />
+                      <Bar dataKey="actual" fill="hsl(var(--chart-2))" name="Actual" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="anterior" fill="hsl(var(--muted-foreground))" name="Anterior" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Gráficos */}
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Gráfico de clientes e ingresos por día */}
