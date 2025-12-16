@@ -17,11 +17,12 @@ import { useAuth } from '@/hooks/useAuth';
 import type { AppRole } from '@/types/database';
 import { z } from 'zod';
 import { Separator } from '@/components/ui/separator';
+import { passwordSchema, validatePassword, PASSWORD_REQUIREMENTS } from '@/lib/passwordValidation';
 
 const newUserSchema = z.object({
   nombre: z.string().trim().min(2, { message: 'El nombre debe tener al menos 2 caracteres' }).max(100),
   email: z.string().trim().email({ message: 'Correo electrónico inválido' }),
-  password: z.string().min(6, { message: 'La contraseña debe tener al menos 6 caracteres' }),
+  password: passwordSchema,
 });
 
 interface UserWithRole {
@@ -147,10 +148,11 @@ export default function Usuarios() {
   const handleChangePassword = async () => {
     if (!editingUser || !newPasswordForEdit) return;
 
-    if (newPasswordForEdit.length < 6) {
+    const passwordError = validatePassword(newPasswordForEdit);
+    if (passwordError) {
       toast({
         title: 'Error',
-        description: 'La contraseña debe tener al menos 6 caracteres',
+        description: passwordError,
         variant: 'destructive',
       });
       return;
@@ -468,7 +470,7 @@ export default function Usuarios() {
                 <Input
                   id="new-password"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="Mín. 8 caracteres, mayúscula, minúscula, número"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="touch-target"

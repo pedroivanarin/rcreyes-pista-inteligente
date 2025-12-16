@@ -66,6 +66,35 @@ serve(async (req) => {
       )
     }
 
+    // Validate password strength
+    if (password.length < 8) {
+      return new Response(
+        JSON.stringify({ error: 'La contraseña debe tener al menos 8 caracteres' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    if (!/[A-Z]/.test(password)) {
+      return new Response(
+        JSON.stringify({ error: 'La contraseña debe incluir al menos una letra mayúscula' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    if (!/[a-z]/.test(password)) {
+      return new Response(
+        JSON.stringify({ error: 'La contraseña debe incluir al menos una letra minúscula' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    if (!/[0-9]/.test(password)) {
+      return new Response(
+        JSON.stringify({ error: 'La contraseña debe incluir al menos un número' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Validate role
     const validRoles = ['operador', 'supervisor', 'admin']
     const assignedRole = validRoles.includes(role) ? role : 'operador'

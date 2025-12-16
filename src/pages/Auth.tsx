@@ -9,14 +9,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { passwordSchema, PASSWORD_REQUIREMENTS } from '@/lib/passwordValidation';
 
 const loginSchema = z.object({
   email: z.string().trim().email({ message: 'Correo electrónico inválido' }),
-  password: z.string().min(6, { message: 'La contraseña debe tener al menos 6 caracteres' }),
+  password: z.string().min(1, { message: 'La contraseña es requerida' }),
 });
 
-const signupSchema = loginSchema.extend({
+const signupSchema = z.object({
+  email: z.string().trim().email({ message: 'Correo electrónico inválido' }),
   nombre: z.string().trim().min(2, { message: 'El nombre debe tener al menos 2 caracteres' }).max(100),
+  password: passwordSchema,
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Las contraseñas no coinciden',
@@ -174,7 +177,7 @@ export default function Auth() {
                 <Input
                   id="signup-password"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="Mín. 8 caracteres, mayúscula, minúscula, número"
                   value={signupPassword}
                   onChange={(e) => setSignupPassword(e.target.value)}
                   className="touch-target"

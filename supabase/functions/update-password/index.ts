@@ -66,9 +66,31 @@ serve(async (req) => {
       )
     }
 
-    if (newPassword.length < 6) {
+    // Validate password strength
+    if (newPassword.length < 8) {
       return new Response(
-        JSON.stringify({ error: 'La contraseña debe tener al menos 6 caracteres' }),
+        JSON.stringify({ error: 'La contraseña debe tener al menos 8 caracteres' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    if (!/[A-Z]/.test(newPassword)) {
+      return new Response(
+        JSON.stringify({ error: 'La contraseña debe incluir al menos una letra mayúscula' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    if (!/[a-z]/.test(newPassword)) {
+      return new Response(
+        JSON.stringify({ error: 'La contraseña debe incluir al menos una letra minúscula' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    if (!/[0-9]/.test(newPassword)) {
+      return new Response(
+        JSON.stringify({ error: 'La contraseña debe incluir al menos un número' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
