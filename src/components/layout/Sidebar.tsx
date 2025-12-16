@@ -7,7 +7,7 @@ import {
   Users, 
   UserCheck,
   BarChart3,
-  Settings,
+  CalendarClock,
   X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,6 +29,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Tablero' },
   { to: '/nuevo-ticket', icon: Plus, label: 'Nuevo Ticket' },
+  { to: '/cierre-dia', icon: CalendarClock, label: 'Cierre de Día' },
   { to: '/clientes', icon: UserCheck, label: 'Clientes', requiresAdmin: true },
   { to: '/servicios', icon: Package, label: 'Servicios', requiresAdmin: true },
   { to: '/tarifas', icon: DollarSign, label: 'Tarifas', requiresAdmin: true },

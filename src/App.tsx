@@ -18,6 +18,7 @@ import Tarifas from "./pages/Tarifas";
 import Usuarios from "./pages/Usuarios";
 import Clientes from "./pages/Clientes";
 import Reportes from "./pages/Reportes";
+import CierreDia from "./pages/CierreDia";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -77,6 +78,11 @@ const App = () => (
             <Route path="/reportes" element={
               <ProtectedRoute requireAdmin>
                 <Reportes />
+              </ProtectedRoute>
+            } />
+            <Route path="/cierre-dia" element={
+              <ProtectedRoute>
+                <CierreDia />
               </ProtectedRoute>
             } />
             
