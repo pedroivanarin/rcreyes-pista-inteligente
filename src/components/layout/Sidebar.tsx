@@ -8,7 +8,8 @@ import {
   UserCheck,
   BarChart3,
   CalendarClock,
-  X
+  X,
+  HelpCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { to: '/tarifas', icon: DollarSign, label: 'Tarifas', requiresAdmin: true },
   { to: '/usuarios', icon: Users, label: 'Usuarios', requiresAdmin: true },
   { to: '/reportes', icon: BarChart3, label: 'Reportes', requiresAdmin: true },
+  { to: '/ayuda', icon: HelpCircle, label: 'Ayuda' },
 ];
 
 export function Sidebar({ open, onClose }: SidebarProps) {

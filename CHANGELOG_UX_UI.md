@@ -92,9 +92,16 @@ Este documento detalla las mejoras de experiencia de usuario (UX) y diseño de i
   - Pausa (Pause): "Pausar ticket"
   - Reanudar (Play): "Reanudar ticket"
 
-### 4.2 Guía de Usuario
-- **Estado**: Pendiente para fase futura
-- **Propuesta**: Crear página `/ayuda` con documentación de cada módulo
+### 4.2 Guía de Usuario ✅
+- **Estado**: Implementado
+- **Archivo**: `src/pages/Ayuda.tsx`
+- **Ruta**: `/ayuda`
+- **Contenido**:
+  - Referencia rápida de estados de ticket
+  - Descripción de roles y permisos
+  - Niveles de membresía con descuentos
+  - Guías detalladas por módulo (acordeón)
+  - Información sobre impresión de tickets
 
 ---
 
