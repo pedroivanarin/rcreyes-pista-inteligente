@@ -237,3 +237,69 @@
     @apply flex items-center justify-center py-4 text-muted-foreground;
   }
 }
+
+/* Print styles - Hide everything except ticket content */
+@media print {
+  /* Hide navigation and layout elements */
+  aside,
+  header,
+  nav,
+  .no-print,
+  [data-sidebar],
+  [data-slot="sidebar"],
+  .sidebar-container {
+    display: none !important;
+  }
+
+  /* Reset layout to full width */
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Make content full width without sidebar spacing */
+  .flex-1,
+  [class*="ml-"] {
+    margin-left: 0 !important;
+  }
+
+  /* Card styling for print */
+  .print\:border-0 {
+    border: none !important;
+  }
+
+  .print\:shadow-none {
+    box-shadow: none !important;
+  }
+
+  /* Show print-only elements */
+  .print\:block {
+    display: block !important;
+  }
+
+  .print\:flex {
+    display: flex !important;
+  }
+
+  /* Text colors for print */
+  * {
+    color: black !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ensure proper page breaks */
+  .mx-auto {
+    margin: 0 auto !important;
+    max-width: 600px !important;
+    padding: 20px !important;
+  }
+}
