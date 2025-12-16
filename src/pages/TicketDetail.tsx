@@ -32,6 +32,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Ticket, EstadoTicket, TicketServicio } from '@/types/database';
 import { cn } from '@/lib/utils';
+import { PrintableTicketsContainer } from '@/components/tickets/PrintableTicket';
 
 const estadoStyles: Record<EstadoTicket, string> = {
   activo: 'bg-success text-success-foreground',
@@ -75,6 +76,7 @@ export default function TicketDetail() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
 
   const fetchTicket = async () => {
     if (!id) return;
@@ -218,7 +220,7 @@ export default function TicketDetail() {
   };
 
   const handlePrint = () => {
-    window.print();
+    setShowPrintDialog(true);
   };
 
   const calcularSubtotalServicios = () => {
@@ -476,6 +478,16 @@ export default function TicketDetail() {
               Confirmar Cancelación
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print Dialog */}
+      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+          <PrintableTicketsContainer 
+            ticket={ticket} 
+            onClose={() => setShowPrintDialog(false)} 
+          />
         </DialogContent>
       </Dialog>
     </AppLayout>
