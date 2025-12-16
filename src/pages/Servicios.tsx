@@ -58,6 +58,7 @@ interface Servicio {
   precio: number;
   tipo_costo: TipoCosto;
   requiere_inventario: boolean;
+  es_renta: boolean;
   stock_actual: number | null;
   maximo_por_ticket: number | null;
   activo: boolean;
@@ -169,6 +170,7 @@ export default function Servicios() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const requiereInventario = formData.get('requiere_inventario') === 'on';
     
     mutation.mutate({
       nombre: formData.get('nombre') as string,
@@ -176,7 +178,8 @@ export default function Servicios() {
       precio: parseFloat(formData.get('precio') as string),
       tipo_costo: formData.get('tipo_costo') as TipoCosto,
       icono: formData.get('icono') as string || 'package',
-      requiere_inventario: formData.get('requiere_inventario') === 'on',
+      requiere_inventario: requiereInventario,
+      es_renta: requiereInventario && formData.get('es_renta') === 'on',
       stock_actual: parseInt(formData.get('stock_actual') as string) || null,
       maximo_por_ticket: parseInt(formData.get('maximo_por_ticket') as string) || null,
       activo: formData.get('activo') === 'on',
@@ -302,11 +305,23 @@ export default function Servicios() {
                 </div>
                 
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="requiere_inventario">Requiere Inventario (Renta)</Label>
+                  <Label htmlFor="requiere_inventario">Control de Stock</Label>
                   <Switch 
                     id="requiere_inventario" 
                     name="requiere_inventario"
                     defaultChecked={editingService?.requiere_inventario}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pl-4 border-l-2 border-muted">
+                  <div>
+                    <Label htmlFor="es_renta">Es Renta (Devuelve al Cobrar)</Label>
+                    <p className="text-xs text-muted-foreground">Activa si el artículo se devuelve (ej: autos RC)</p>
+                  </div>
+                  <Switch 
+                    id="es_renta" 
+                    name="es_renta"
+                    defaultChecked={editingService?.es_renta}
                   />
                 </div>
                 
@@ -462,9 +477,9 @@ export default function Servicios() {
                         </Badge>
                         <Badge variant="outline">{servicio.tipo_costo}</Badge>
                         {servicio.requiere_inventario && (
-                          <Badge variant="secondary" className="gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                            <RotateCcw className="h-3 w-3" />
-                            Renta
+                          <Badge variant="secondary" className={`gap-1 ${servicio.es_renta ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`}>
+                            {servicio.es_renta ? <RotateCcw className="h-3 w-3" /> : <Package className="h-3 w-3" />}
+                            {servicio.es_renta ? 'Renta' : 'Stock'}
                           </Badge>
                         )}
                       </div>

@@ -163,9 +163,9 @@ export default function Cobro() {
 
       if (updateError) throw updateError;
 
-      // Return inventory for rented services
+      // Return inventory for rented services (only if es_renta = true)
       for (const ts of servicios) {
-        if (ts.servicio?.requiere_inventario) {
+        if (ts.servicio?.requiere_inventario && ts.servicio?.es_renta) {
           // Get current stock
           const { data: servicioData } = await supabase
             .from('servicios')
@@ -338,7 +338,7 @@ export default function Cobro() {
                 <div key={ts.id} className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <span>{ts.servicio?.nombre} x{ts.cantidad}</span>
-                    {ts.servicio?.requiere_inventario && (
+                    {ts.servicio?.es_renta && (
                       <Badge variant="secondary" className="gap-1 text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
                         <RotateCcw className="h-2.5 w-2.5" />
                         Devuelve

@@ -183,6 +183,7 @@ export type Database = {
           activo: boolean
           created_at: string
           descripcion: string | null
+          es_renta: boolean
           icono: string | null
           id: string
           maximo_por_ticket: number | null
@@ -197,6 +198,7 @@ export type Database = {
           activo?: boolean
           created_at?: string
           descripcion?: string | null
+          es_renta?: boolean
           icono?: string | null
           id?: string
           maximo_por_ticket?: number | null
@@ -211,6 +213,7 @@ export type Database = {
           activo?: boolean
           created_at?: string
           descripcion?: string | null
+          es_renta?: boolean
           icono?: string | null
           id?: string
           maximo_por_ticket?: number | null

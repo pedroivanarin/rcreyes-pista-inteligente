@@ -57,6 +57,7 @@ export interface Servicio {
   tipo_costo: TipoCosto;
   precio: number;
   requiere_inventario: boolean;
+  es_renta: boolean;
   stock_actual?: number;
   maximo_por_ticket?: number;
   activo: boolean;
